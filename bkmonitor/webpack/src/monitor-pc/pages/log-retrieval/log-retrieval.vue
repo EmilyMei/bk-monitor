@@ -43,6 +43,19 @@ import bus from 'monitor-common/utils/event-bus';
 })
 export default class LogRetrieval extends Vue {
   @Ref('iframe') private iframeRef: HTMLIFrameElement;
+  private initRouteString = '';
+
+  getUrlParamsString() {
+    const { from, ...otherQuery } = this.$route.query;
+    const str = Object.entries({
+      ...(otherQuery || {}),
+      ...Object.fromEntries(new URLSearchParams(location.search)),
+    })
+      .map(entry => entry.join('='))
+      .join('&');
+    if (str.length) return `&${str}`;
+    return '';
+  }
 
   get retrievalUrl() {
     // if (process.env.NODE_ENV === 'development') {
@@ -52,7 +65,8 @@ export default class LogRetrieval extends Vue {
     if (window.location.protocol === 'https:' && this.$store.getters.bkLogSearchUrl.match(/^http:/)) {
       bkLogSearchUrl = this.$store.getters.bkLogSearchUrl.replace('http:', 'https:');
     }
-    return `${bkLogSearchUrl}#/retrieve/?from=monitor&bizId=${this.$store.getters.bizId}`;
+
+    return `${bkLogSearchUrl}#/retrieve/${this.$route.params?.indexId || ''}?from=monitor${this.initRouteString}`;
   }
 
   handleLoad() {
@@ -65,10 +79,36 @@ export default class LogRetrieval extends Vue {
     event.stopPropagation();
     bus.$emit('handle-keyup-search', event);
   }
+  receiveMessage(event) {
+    // 检查消息来源是否可信
+    if (event.origin !== location.origin) return;
+    // 获取来自iframe的内容
+    const data = event.data;
+
+    this.$router
+      .replace({
+        params: data.params,
+        query: data.query,
+      })
+      .catch(err => {
+        if (err.name !== 'NavigationDuplicated') {
+          console.log(err);
+        }
+      });
+  }
+
+  created() {
+    this.initRouteString = this.getUrlParamsString();
+  }
+
+  mounted() {
+    window.addEventListener('message', this.receiveMessage, false);
+  }
 
   beforeDestroy() {
     const iframeContent = this.iframeRef?.contentWindow;
     iframeContent?.document.body.removeEventListener('keydown', this.handleKeydownGlobalSearch);
+    window.removeEventListener('message', this.receiveMessage, false);
   }
 }
 </script>
