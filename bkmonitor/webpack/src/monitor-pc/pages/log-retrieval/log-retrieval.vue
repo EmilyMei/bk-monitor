@@ -43,8 +43,8 @@ import bus from 'monitor-common/utils/event-bus';
 })
 export default class LogRetrieval extends Vue {
   @Ref('iframe') private iframeRef: HTMLIFrameElement;
-  initRouteString = '';
-  initBizId = -1;
+  private initRouteString = '';
+  private initBizId = -1;
 
   getUrlParamsString() {
     const { from, spaceUid, bizId, ...otherQuery } = this.$route.query;
@@ -75,8 +75,7 @@ export default class LogRetrieval extends Vue {
     if (window.location.protocol === 'https:' && this.$store.getters.bkLogSearchUrl.match(/^http:/)) {
       bkLogSearchUrl = this.$store.getters.bkLogSearchUrl.replace('http:', 'https:');
     }
-
-    return `${bkLogSearchUrl}/#/retrieve/${this.$route.params?.indexId || ''}?from=monitor${this.initRouteString}`;
+    return `${bkLogSearchUrl}#/retrieve/${this.$route.params?.indexId || ''}?from=monitor${this.initRouteString}`;
   }
 
   handleLoad() {
@@ -91,7 +90,7 @@ export default class LogRetrieval extends Vue {
   }
   receiveMessage(event) {
     // 检查消息来源是否可信
-    if (event.origin !== location.origin) return;
+    if (event.origin !== this.$store.getters.bkLogSearchUrl) return;
     // 获取来自iframe的内容
     const data = event.data;
 
@@ -107,11 +106,9 @@ export default class LogRetrieval extends Vue {
       });
   }
 
-  created() {
-    this.initBizId = this.$store.getters.bizId;
-  }
 
   mounted() {
+    this.initBizId = this.$store.getters.bizId;
     this.initRouteString = this.getUrlParamsString();
     window.addEventListener('message', this.receiveMessage, false);
   }
