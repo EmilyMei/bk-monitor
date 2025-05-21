@@ -39,7 +39,7 @@ import { refreshList } from './utils';
 import type { IRefreshItem, IResultItem } from '../type';
 
 import './drill-analysis-filter.scss';
-/** 过滤 */
+
 interface IProps {
   filterConfig: {
     where: {
