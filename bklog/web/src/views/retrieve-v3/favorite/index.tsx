@@ -29,7 +29,9 @@ import { computed, defineComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { throttle } from 'lodash';
 
 import RetrieveHelper, { RetrieveEvent } from '../../retrieve-helper';
-import V2Collection from '../../retrieve-v2/collect/collect-index';
+import CollectMain from './collect-main';
+// import V2Collection from '../../retrieve-v2/collect/collect-index';
+import DragContainer from './components/drag-container/drag-container';
 
 import './index.scss';
 
@@ -75,16 +77,21 @@ export default defineComponent({
     return () => {
       return (
         <keep-alive>
-          <V2Collection
+          <DragContainer
             style={favoriteStyle.value}
             width={collectWidth.value}
             class='v3-bklog-collection'
-            is-show={isShow.value}
+            isShow={isShow.value}
             on={{
               'update:isShow': handleUpdateIsShow,
               'update:width': handleWidthChange,
             }}
-          ></V2Collection>
+          >
+            <CollectMain
+              isShowCollect={isShow.value}
+              on-show-change={handleUpdateIsShow}
+            />
+          </DragContainer>
         </keep-alive>
       );
     };
