@@ -85,7 +85,7 @@ export default defineComponent({
             width: props.isShow ? `${props.width}px` : 0,
             display: props.isShow ? 'block' : 'none',
           }}
-          class='retrieve-collect-index'
+          class='drag-container-box'
         >
           {slots.default?.()}
           <div

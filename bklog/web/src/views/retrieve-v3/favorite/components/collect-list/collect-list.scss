@@ -1,6 +1,6 @@
 .collect-list-box {
   width: 100%;
-  height: 100%;
+  height: calc(100% - 170px);
   background: #ebeef5;
   overflow: auto;
   padding: 12px 0 0 12px;
@@ -9,6 +9,16 @@
     padding: 6px 0;
     font-family: MicrosoftYaHei;
     font-size: 12px;
+    .icon-more {
+      color: #979ba5;
+      font-size: 16px;
+      font-weight: 500;
+      &:hover {
+        background: #fff;
+        color: #3a84ff;
+        border-radius: 50%;
+      }
+    }
     .collect-list-item-main {
       width: 100%;
       height: 100%;
@@ -18,14 +28,39 @@
       cursor: pointer;
     }
     .collect-list-item-child {
-      border-left: 1px solid #a3b1cc99;
-      margin: 8px 5px 0 10px;
+      margin-top: 8px;
       .child-item {
         width: 100%;
-        height: 32px;
-        line-height: 32px;
-        padding-left: 12px;
+        line-height: 16px;
+        padding: 7px 0 7px 20px;
         color: #4d4f56;
+        position: relative;
+        &::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 8px;
+          transform: translateY(-50%);
+          width: 1px;
+          height: 100%;
+          background: #a3b1cc99;
+        }
+        &:hover {
+          background: #ffffff;
+          box-shadow: 0 1px 2px 0 #00000014;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+      }
+      .child-name {
+        display: inline-block;
+        max-width: calc(100% - 20px);
+        word-wrap: break-word;
+      }
+      .child-icon {
+        color: #ff9c01;
+        font-size: 12px;
+        margin-left: 4px;
       }
     }
     .item-icon {

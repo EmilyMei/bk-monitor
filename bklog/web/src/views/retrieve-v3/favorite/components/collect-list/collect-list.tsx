@@ -70,11 +70,17 @@ export default defineComponent({
             ></span> */}
               <span class='item-name'>{item.group_name}</span>
               <span class='item-count'>{(item.favorites || []).length}</span>
+              <span class='bklog-icon bklog-more icon-more'></span>
             </div>
             {(item.favorites || []).length > 0 && (
               <div class='collect-list-item-child'>
                 {item.favorites.map(child => (
-                  <div class='child-item'>{child.name}</div>
+                  <div class='child-item'>
+                    <span class='child-name'>{child.name}</span>
+                    {/* 数据源不存在 */}
+                    {isFailFavorite(child) && <span class='bklog-icon bklog-shixiao child-icon'></span>}
+                    <span class='bklog-icon bklog-more icon-more'></span>
+                  </div>
                 ))}
               </div>
             )}
