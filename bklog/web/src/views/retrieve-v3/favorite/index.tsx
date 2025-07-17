@@ -87,6 +87,12 @@ export default defineComponent({
               'update:width': handleWidthChange,
             }}
           >
+            <div
+              class='tooltip'
+              data-tip='hello'
+            >
+              <button class='btn'>Hover me</button>
+            </div>
             <CollectMain
               isShowCollect={isShow.value}
               on-show-change={handleUpdateIsShow}
