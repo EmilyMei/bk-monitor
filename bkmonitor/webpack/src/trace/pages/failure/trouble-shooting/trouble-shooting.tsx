@@ -70,9 +70,9 @@ export default defineComponent({
     const dimensionalTitleSlot = (item: IAnomalyAnalysis) => (
       <span class='dimensional-title'>
         {item.name || `异常维度（组合）${item.$index + 1}`}
-        <span class='red-font'>
+        {/* <span class='red-font'>
           {t('可疑程度')} {((item?.score || 0) * 100).toFixed(2)}%
-        </span>
+        </span> */}
       </span>
     );
     /** 跳转到告警tab带上策路ID过滤 */
