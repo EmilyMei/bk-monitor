@@ -612,7 +612,7 @@ export default defineComponent<IProps>({
       isShowManageDialog.value = true;
     }
     function handleShowCurrentChange() {
-      RetrieveHelper.setViewCurrentIndexn(isShowCurrentIndexList.value);
+      RetrieveHelper.setViewCurrentIndexSet(isShowCurrentIndexList.value);
     }
     function closeShowManageDialog() {
       isShowManageDialog.value = false;

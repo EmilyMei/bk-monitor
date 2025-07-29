@@ -337,7 +337,7 @@ class RetrieveHelper extends RetrieveBase {
    * 收藏栏是否仅查看当前索引集
    * @param show
    */
-  setViewCurrentIndexn(show: boolean) {
+  setViewCurrentIndexSet(show: boolean) {
     this.isViewCurrentIndex = show;
     localStorage.setItem(STORAGE_KEY.STORAGE_KEY_FAVORITE_VIEW_CURRENT_CHANGE, `${show}`);
     this.runEvent(RetrieveEvent.FAVORITE_VIEW_CURRENT_CHANGE, show);

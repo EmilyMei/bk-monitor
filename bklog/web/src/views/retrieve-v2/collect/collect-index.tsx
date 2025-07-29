@@ -826,7 +826,7 @@ export default class CollectIndex extends tsc<IProps> {
     this.isShowManageDialog = true;
   }
   handleShowCurrentChange() {
-    RetrieveHelper.setViewCurrentIndexn(this.isShowCurrentIndexList);
+    RetrieveHelper.setViewCurrentIndexSet(this.isShowCurrentIndexList);
   }
   closeShowManageDialog() {
     this.isShowManageDialog = false;

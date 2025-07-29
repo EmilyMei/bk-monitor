@@ -23,8 +23,7 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-
-import { defineComponent } from 'vue';
+import { defineComponent, ref, onMounted, reactive, PropType } from 'vue';
 
 import BklogPopover from '@/components/bklog-popover';
 import useLocale from '@/hooks/use-locale';
@@ -33,18 +32,28 @@ import './collect-tool.scss';
 
 export default defineComponent({
   name: 'CollectTool',
-  components: {
-    BklogPopover,
-  },
   props: {
     isChecked: {
       type: Boolean,
       default: true,
     },
+    collapseAll: {
+      type: Boolean,
+      default: true,
+    },
+    rules: {
+      type: Object as PropType<Record<string, any>>,
+      default: () => ({}),
+    },
   },
-  emits: ['width-change'],
-  setup(props, { emit }) {
+  emits: ['handle'],
+  setup(props, { emit, expose }) {
     const { t } = useLocale();
+    const addPopoverRef = ref(null);
+    const sortPopoverRef = ref(null);
+    const formRef = ref(null);
+    const formData = reactive({ group_name: '' });
+    const active = ref('');
     const groupSortList = [
       {
         name: t('按名称 {n} 排序', { n: 'A - Z' }),
@@ -59,58 +68,140 @@ export default defineComponent({
         id: 'UPDATED_AT_DESC',
       },
     ];
-    const renderAddGroup = () => (
-      <div class='collect-tool-add-group'>
-        <div class='collect-tool-add-group-title'>
-          {t('分组名称')}
-          <span class='title-point'>*</span>
-        </div>
-        <input
-          class='collect-tool-input'
-          placeholder={t('请输入')}
-        ></input>
-        <div class='collect-tool-btn-box'>
-          <span class='tool-btn-ok'>{t('确定')}</span>
-          <span class='tool-btn-cancel'>{t('取消')}</span>
-        </div>
+    onMounted(() => {
+      formRef.value?.clearError();
+      formData.group_name = '';
+      active.value = localStorage.getItem('favoriteSortType') || 'NAME_ASC';
+    });
+    /** 调整排序 */
+    const handleSortChange = (val: string) => {
+      active.value = val;
+      localStorage.setItem('favoriteSortType', val);
+    };
+    /** 是否仅查看当前索引集 */
+    const handleChangeIndex = (val: boolean) => {
+      emit('handle', 'change-index', val);
+    };
+    /** 是否全部收起 */
+    const handleCollapseAll = () => {
+      emit('handle', 'collapse', !props.collapseAll);
+    };
+    /** 取消按钮 */
+    const handleCancel = (type: 'add' | 'sort') => {
+      switch (type) {
+        case 'add':
+          addPopoverRef.value?.hide();
+          break;
+        case 'sort':
+          sortPopoverRef.value?.hide();
+          break;
+      }
+    };
+    /** 确定按钮 */
+    const handleOk = (type: 'add' | 'sort') => {
+      const actions = {
+        add: () => {
+          formRef.value
+            ?.validate()
+            .then(() => {
+              emit('handle', 'add-group', formData.group_name);
+            })
+            .catch(err => {
+              console.error('表单校验异常', err);
+            });
+        },
+
+        sort: () => {
+          emit('handle', 'sort-change', active.value);
+          handleCancel('sort');
+        },
+      };
+      actions[type]?.();
+    };
+
+    const renderBtnGroup = (type: 'add' | 'sort') => (
+      <div class='collect-tool-btn-box'>
+        <span
+          class='tool-btn-ok'
+          onClick={() => handleOk(type)}
+        >
+          {t('确定')}
+        </span>
+        <span
+          class='tool-btn-cancel'
+          onClick={() => handleCancel(type)}
+        >
+          {t('取消')}
+        </span>
       </div>
     );
+    /** 新增分组Render */
+    const renderAddGroup = () => (
+      <div class='collect-tool-add-group'>
+        <bk-form
+          ref={formRef}
+          form-type='vertical'
+          {...{
+            props: {
+              model: formData,
+              rules: props.rules,
+            },
+          }}
+        >
+          <bk-form-item
+            label={t('分组名称')}
+            property='group_name'
+            required={true}
+          >
+            <bk-input
+              class='collect-tool-input'
+              clearable={true}
+              value={formData.group_name}
+              onChange={val => (formData.group_name = val)}
+              onEnter={() => handleOk('add')}
+            ></bk-input>
+          </bk-form-item>
+        </bk-form>
+        {renderBtnGroup('add')}
+      </div>
+    );
+    /** 排序Render */
     const renderSort = () => (
       <div class='collect-tool-sort-box'>
         <div class='tool-sort-title'>{t('收藏排序')}</div>
-        {groupSortList.map(item => (
-          <div class='tool-sort-item'>
-            <input
+        <bk-radio-group
+          class='tool-sort-item'
+          value={active.value}
+          onChange={handleSortChange}
+        >
+          {groupSortList.map(item => (
+            <bk-radio
               class='tool-sort-radio'
-              name='contact'
-              type='radio'
               value={item.id}
-            />
-            <span class='tool-sort-name'>{item.name}</span>
-          </div>
-        ))}
-        <div class='collect-tool-btn-box'>
-          <span class='tool-btn-ok'>{t('确定')}</span>
-          <span class='tool-btn-cancel'>{t('取消')}</span>
-        </div>
+            >
+              {item.name}
+            </bk-radio>
+          ))}
+        </bk-radio-group>
+        {renderBtnGroup('sort')}
       </div>
     );
+    expose({ handleCancel });
 
     return () => (
       <div class='collect-tool-box'>
         <span class='tool-checkbox'>
-          <label class='custom-checkbox'>
-            <input
-              type='checkbox'
-              value={props.isChecked}
-            />
-            <span class='check-mark'></span>
-          </label>
-          {t('仅查看当前索引集')}
+          <bk-checkbox
+            value={props.isChecked}
+            onChange={handleChangeIndex}
+          >
+            {t('仅查看当前索引集')}
+          </bk-checkbox>
         </span>
         <span class='tool-icon-box'>
           {/* 新建收藏分组 */}
           <BklogPopover
+            ref={addPopoverRef}
             options={{ placement: 'bottom-end', appendTo: document.body } as any}
             trigger='click'
             {...{
@@ -124,12 +215,14 @@ export default defineComponent({
           </BklogPopover>
           {/* 全部收起/展开 */}
           <i
-            class='bklog-icon bklog-zhankai-2 tool-icon'
-            v-bk-tooltips={t('全部收起')}
+            class={`bklog-icon bklog-${props.collapseAll ? 'zhankai-2' : 'shouqi'} tool-icon`}
+            v-bk-tooltips={props.collapseAll ? t('全部展开') : t('全部收起')}
+            onClick={handleCollapseAll}
           ></i>
 
           {/* 调整排序 */}
           <BklogPopover
+            ref={sortPopoverRef}
             options={{ placement: 'bottom-end', appendTo: document.body } as any}
             trigger='click'
             {...{

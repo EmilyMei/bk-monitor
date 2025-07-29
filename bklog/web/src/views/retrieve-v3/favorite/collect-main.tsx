@@ -28,12 +28,17 @@ import { computed, defineComponent, ref, watch } from 'vue';
 
 import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
+import { RetrieveUrlResolver } from '@/store/url-resolver';
+import { useRouter, useRoute } from 'vue-router/composables';
 
+import { deepClone } from '../../../common/util';
+import { BK_LOG_STORAGE, SEARCH_MODE_DIC } from '../../../store/store.type';
 import RetrieveHelper from '../../retrieve-helper';
 import CollectHead from './components/collect-head/collect-head';
 import CollectList from './components/collect-list/collect-list';
 import CollectTab from './components/collect-tab/collect-tab';
 import CollectTool from './components/collect-tool/collect-tool';
+import { getGroupNameRules, handleUpdateGroupName } from './utils';
 
 import './collect-main.scss';
 
@@ -44,19 +49,42 @@ export default defineComponent({
   },
   emits: ['show-change'],
 
-  setup(props, { emit, root }) {
+  setup(props, { emit }) {
     const { t } = useLocale();
     const store = useStore();
+    const router = useRouter();
+    const route = useRoute();
+    const collectToolRef = ref(null);
     const favoriteLoading = ref(false);
     const activeTab = ref('origin');
+    /** 当前业务名 */
+    const spaceUid = computed(() => store.state.spaceUid);
+    /** 是否仅查看当前索引集 */
     const isShowCurrentIndexList = ref(RetrieveHelper.isViewCurrentIndex);
     const isUnionSearch = computed(() => store.getters.isUnionSearch);
     const unionIndexList = computed(() => store.state.unionIndexList);
     const indexSetId = computed(() => `${store.getters.indexId}`);
     const list = computed(() => store.state.favoriteList || []);
+    const indexSetList = computed(() => store.state.retrieve.indexSetList ?? []);
+    const activeFavorite = ref({});
+    /** 输入框搜索内容 */
     const searchValue = ref('');
+    /** 是否展开全部列表 */
+    const isCollapseList = ref(true);
+
+    const isSearchEmpty = computed(
+      () => !!searchValue.value?.length && filterDataList.value.filter(item => item.favorites.length).length === 0,
+    );
+    /** 分组名校验规则 */
+    const rulesData = computed(() => getGroupNameRules(filterDataList.value));
+
+    /** 展开/收起 收藏夹  */
     const handleCollapse = () => {
       emit('show-change', !props.isShowCollect);
+    };
+    /** 列表展开收起 */
+    const handleCollapseList = (val: boolean) => {
+      isCollapseList.value = val;
     };
     /** 根据不同tab类型获取要展示的列表 */
     const filterDataType = (dataType: string) => {
@@ -75,6 +103,23 @@ export default defineComponent({
     const handleTabChange = (tab: string) => {
       activeTab.value = tab;
     };
+    /** 调整排序 */
+    const handleSortChange = () => {
+      getFavoriteList();
+    };
+    /** 新增收藏分组 */
+    const handleAddGroup = async (groupName: string) => {
+      if (!groupName.trim()) return;
+      await handleUpdateGroupName({ group_new_name: groupName }, spaceUid.value);
+      collectToolRef.value?.handleCancel('add');
+      getFavoriteList();
+    };
+    /** 是否仅查看当前索引集 */
+    const handleChangeIndex = (val: boolean) => {
+      isShowCurrentIndexList.value = val;
+      RetrieveHelper.setViewCurrentIndexSet(val);
+    };
+    /** 获取列表数据 */
     const getFavoriteList = async () => {
       try {
         favoriteLoading.value = true;
@@ -92,7 +137,7 @@ export default defineComponent({
         //       break;
         //     }
         //   }
-        //   if (!isFindCheckValue) handleClickFavoriteItem();
+        //   if (!isFindCheckValue) handleClickitem();
         // }
         favoriteLoading.value = false;
       }
@@ -133,11 +178,12 @@ export default defineComponent({
     );
 
     const filterDataList = computed(() =>
-      showList.value.map(item =>
-        item.favorites.filter(
+      showList.value.map(group => ({
+        ...group,
+        favorites: group.favorites.filter(
           ele => ele.created_by.includes(searchValue.value) || ele.name.includes(searchValue.value),
         ),
-      ),
+      })),
     );
 
     const tabList = computed(() => [
@@ -157,19 +203,176 @@ export default defineComponent({
     watch(
       () => props.isShowCollect,
       value => {
-        console.log(value, 'watch isShowCollect');
         if (value) {
-          //   baseSortType.value = localStorage.getItem('favoriteSortType') || 'NAME_ASC';
-          //   sortType.value = baseSortType.value;
           getFavoriteList();
         } else {
-          //   activeFavorite.value = null;
+          activeFavorite.value = null;
           searchValue.value = '';
         }
       },
       { immediate: true },
     );
-    console.log(showList.value, 'filterDataList');
+    const handleRefresh = () => {
+      getFavoriteList();
+    };
+    const renderEmpty = emptyType => {
+      return (
+        <div class='data-empty-box'>
+          <bk-exception
+            class='exception-wrap-item exception-part'
+            scene='part'
+            type={emptyType}
+          ></bk-exception>
+        </div>
+      );
+    };
+    /** 更新路由配置 */
+    const setRouteParams = item => {
+      const getRouteQueryParams = () => {
+        const { ids, isUnionIndex } = store.state.indexItem;
+        const search_mode = SEARCH_MODE_DIC[store.state.storage[BK_LOG_STORAGE.SEARCH_TYPE]] ?? 'ui';
+        const unionList = store.state.unionIndexList;
+        const clusterParams = store.state.clusterParams;
+        const { start_time, end_time, addition, begin, size, ip_chooser, host_scopes, interval, sort_list } =
+          store.getters.retrieveParams;
+        return {
+          addition,
+          start_time,
+          end_time,
+          begin,
+          size,
+          ip_chooser,
+          host_scopes,
+          interval,
+          bk_biz_id: store.state.bkBizId,
+          search_mode,
+          sort_list,
+          ids,
+          isUnionIndex,
+          unionList,
+          clusterParams,
+        };
+      };
+      const routeParams = getRouteQueryParams();
+      const { ids, isUnionIndex } = routeParams;
+      const params = isUnionIndex
+        ? { ...route.params, indexId: undefined }
+        : { ...route.params, indexId: ids?.[0] ? `${ids?.[0]}` : route.params?.indexId };
+      const query = { ...route.query };
+      const resolver = new RetrieveUrlResolver({
+        ...routeParams,
+        datePickerValue: store.state.indexItem.datePickerValue,
+      });
+      Object.assign(query, resolver.resolveParamsToUrl(), {
+        tab: item?.favorite_type === 'chart' ? 'graphAnalysis' : 'origin',
+      });
+      router.replace({
+        params,
+        query,
+      });
+    };
+    /** 选中收藏 */
+    const handleSelectItem = item => {
+      if (!item) {
+        activeFavorite.value = null;
+        let clearSearchValueNum = store.state.clearSearchValueNum;
+        // 清空当前检索条件
+        store.commit('updateClearSearchValueNum', (clearSearchValueNum += 1));
+        // this.setRouteParams(item);
+        setTimeout(() => {
+          RetrieveHelper.setFavoriteActive(activeFavorite.value);
+        });
+        return;
+      }
+      const cloneValue = deepClone(item);
+      activeFavorite.value = deepClone(item);
+
+      const isUnionIndex = cloneValue.index_set_ids.length > 0;
+      const keyword = cloneValue.params.keyword;
+      const addition = cloneValue.params.addition ?? [];
+      const getSearchMode = () => {
+        if (addition.length > 0 && keyword.length > 0) {
+          return cloneValue.search_mode;
+        }
+        if (addition.length > 0) {
+          return 'ui';
+        }
+
+        return 'sql';
+      };
+      const search_mode = getSearchMode();
+
+      store.commit('resetIndexsetItemParams');
+      store.commit('updateIndexId', cloneValue.index_set_id);
+      store.commit('updateIsSetDefaultTableColumn', false);
+      store.commit('updateStorage', {
+        [BK_LOG_STORAGE.INDEX_SET_ACTIVE_TAB]: item.index_set_type,
+        [BK_LOG_STORAGE.SEARCH_TYPE]: ['ui', 'sql'].indexOf(search_mode ?? 'ui'),
+      });
+
+      const ip_chooser = Object.assign({}, cloneValue.params.ip_chooser ?? {});
+      if (isUnionIndex) {
+        store.commit(
+          'updateUnionIndexList',
+          cloneValue.index_set_ids.map(item => String(item)),
+        );
+      }
+      if (JSON.stringify(ip_chooser) !== '{}') {
+        addition.push({
+          field: '_ip-select_',
+          operator: '',
+          value: [ip_chooser],
+        });
+      }
+      const ids = isUnionIndex ? cloneValue.index_set_ids : [cloneValue.index_set_id];
+      store.commit('updateIndexItem', {
+        keyword,
+        addition,
+        ip_chooser,
+        index_set_id: cloneValue.index_set_id,
+        ids,
+        items: ids.map(id => indexSetList.value.find(item => item.index_set_id === `${id}`)),
+        isUnionIndex,
+        search_mode: search_mode,
+      });
+
+      setRouteParams(item);
+      store.commit('updateChartParams', {
+        ...cloneValue.params.chart_params,
+        fromCollectionActiveTab: 'unused',
+      });
+
+      store.commit('updateIndexSetQueryResult', {
+        origin_log_list: [],
+        list: [],
+      });
+      store.dispatch('requestIndexSetFieldInfo').then(() => {
+        RetrieveHelper.setFavoriteActive({ ...activeFavorite.value, search_mode });
+        store.dispatch('requestIndexSetQuery');
+      });
+    };
+
+    /** 工具栏相关操作 */
+    const toolHandle = (type: string, data) => {
+      switch (type) {
+        /** 新增分组 */
+        case 'add-group':
+          handleAddGroup(data);
+          break;
+        /** 是否仅查看当前索引集 */
+        case 'change-index':
+          handleChangeIndex(data);
+          break;
+        /** 全部展开/收起 */
+        case 'collapse':
+          handleCollapseList(data);
+          break;
+        /** 调整排序 */
+        case 'sort-change':
+          handleSortChange();
+          break;
+      }
+    };
 
     return () => (
       <div class='collect-main-box'>
@@ -191,9 +394,29 @@ export default defineComponent({
             list={tabList.value}
             on-tab-change={handleTabChange}
           />
-          <CollectTool />
+          <CollectTool
+            ref={collectToolRef}
+            collapseAll={isCollapseList.value}
+            isChecked={isShowCurrentIndexList.value}
+            rules={rulesData.value}
+            on-handle={toolHandle}
+          />
         </div>
-        <CollectList list={showList.value} />
+        {!isSearchEmpty.value ? (
+          filterDataList.value.length ? (
+            <CollectList
+              isCollapse={isCollapseList.value}
+              list={filterDataList.value}
+              loading={favoriteLoading.value}
+              on-refresh={handleRefresh}
+              on-select-item={handleSelectItem}
+            />
+          ) : (
+            renderEmpty('empty')
+          )
+        ) : (
+          renderEmpty('search-empty')
+        )}
       </div>
     );
   },
