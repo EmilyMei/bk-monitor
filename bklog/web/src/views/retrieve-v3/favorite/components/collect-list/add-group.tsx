@@ -24,11 +24,12 @@
  * IN THE SOFTWARE.
  */
 
-import { computed, defineComponent, ref, reactive, watch } from 'vue';
+import { computed, defineComponent, ref, reactive, watch, PropType } from 'vue';
 
 import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
 
+import { IFavoriteItem } from '../../type';
 import { handleUpdateGroupName } from '../../utils';
 
 import './add-group.scss';
@@ -37,7 +38,7 @@ export default defineComponent({
   name: 'AddGroup',
   props: {
     rules: {
-      type: Object,
+      type: Object as PropType<Record<string, any>>,
       default: () => ({}),
     },
     /** 是否以表单形式展示 */
@@ -45,12 +46,13 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** 是否为新增 */
     isCreate: {
       type: Boolean,
       default: true,
     },
     data: {
-      type: Object,
+      type: Object as () => IFavoriteItem,
       default: () => ({}),
     },
   },
@@ -80,6 +82,7 @@ export default defineComponent({
       },
       { deep: true },
     );
+    /** 创建分组 */
     const handleCreateGroup = () => {
       checkInputFormRef.value
         ?.validate()

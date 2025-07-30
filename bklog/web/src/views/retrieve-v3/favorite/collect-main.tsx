@@ -40,6 +40,8 @@ import CollectTab from './components/collect-tab/collect-tab';
 import CollectTool from './components/collect-tool/collect-tool';
 import { getGroupNameRules, handleUpdateGroupName } from './utils';
 
+import { IGroupItem, IFavoriteItem } from './type';
+
 import './collect-main.scss';
 
 export default defineComponent({
@@ -92,11 +94,11 @@ export default defineComponent({
         group_id,
         group_name,
         group_type,
-        favorites: favorites.filter(item => item.favorite_type === dataType),
+        favorites: favorites.filter((item: IFavoriteItem) => item.favorite_type === dataType),
       }));
     };
     /** 获取每个tab类型数据量 */
-    const getTypeCount = data => {
+    const getTypeCount = (data: IGroupItem[]) => {
       return data.reduce((pre: number, cur) => pre + cur.favorites.length, 0);
     };
     /** tab 切换 */
@@ -178,7 +180,7 @@ export default defineComponent({
     );
 
     const filterDataList = computed(() =>
-      showList.value.map(group => ({
+      showList.value.map((group: IGroupItem) => ({
         ...group,
         favorites: group.favorites.filter(
           ele => ele.created_by.includes(searchValue.value) || ele.name.includes(searchValue.value),
@@ -215,7 +217,7 @@ export default defineComponent({
     const handleRefresh = () => {
       getFavoriteList();
     };
-    const renderEmpty = emptyType => {
+    const renderEmpty = (emptyType: string) => {
       return (
         <div class='data-empty-box'>
           <bk-exception
@@ -227,7 +229,7 @@ export default defineComponent({
       );
     };
     /** 更新路由配置 */
-    const setRouteParams = item => {
+    const setRouteParams = (item: IFavoriteItem) => {
       const getRouteQueryParams = () => {
         const { ids, isUnionIndex } = store.state.indexItem;
         const search_mode = SEARCH_MODE_DIC[store.state.storage[BK_LOG_STORAGE.SEARCH_TYPE]] ?? 'ui';
@@ -272,13 +274,13 @@ export default defineComponent({
       });
     };
     /** 选中收藏 */
-    const handleSelectItem = item => {
+    const handleSelectItem = (item: IFavoriteItem) => {
       if (!item) {
         activeFavorite.value = null;
         let clearSearchValueNum = store.state.clearSearchValueNum;
         // 清空当前检索条件
         store.commit('updateClearSearchValueNum', (clearSearchValueNum += 1));
-        // this.setRouteParams(item);
+        setRouteParams(item);
         setTimeout(() => {
           RetrieveHelper.setFavoriteActive(activeFavorite.value);
         });

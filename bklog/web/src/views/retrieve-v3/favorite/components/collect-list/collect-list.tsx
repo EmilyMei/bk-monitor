@@ -33,6 +33,7 @@ import { RetrieveUrlResolver } from '@/store/url-resolver';
 import { useRouter } from 'vue-router/composables';
 
 import { copyMessage, utcFormatDate } from '../../../../../common/util';
+import { IFavoriteItem, IGroupItem, IMenuItem } from '../../type';
 import { getGroupNameRules, showMessagePop } from '../../utils';
 import AddGroup from './add-group';
 import EditDialog from './edit-dialog';
@@ -44,18 +45,7 @@ export default defineComponent({
   name: 'CollectList',
   props: {
     list: {
-      type: Array as () => Array<{
-        group_id: number | string;
-        group_type: string;
-        group_name: string;
-        favorites: Array<{
-          name: string;
-          id: number;
-          index_set_type: string;
-          is_active?: boolean;
-          is_actives?: boolean[];
-        }>;
-      }>,
+      type: Array as () => IGroupItem[],
       default: () => [],
     },
     loading: {
@@ -73,12 +63,14 @@ export default defineComponent({
     const router = useRouter();
     const store = useStore();
     const expandedMap = ref({});
+    /** 当前选中的收藏 */
     const selectedId = ref(null);
     const unknownGroupID = ref(0);
     const privateGroupID = ref(0);
     const deleteRefMap = ref({});
     const currentFavorite = ref();
     const listMenuPopoverMap = ref({});
+    /** 删除操作相关key list */
     const deleteKey = ['dismiss-group', 'delete'];
     const childMenu = ref([
       {
@@ -138,15 +130,10 @@ export default defineComponent({
       },
     };
     const isShowEdit = ref(false);
-    /** 当前空间id */
-    const spaceUid = computed(() => store.state.spaceUid);
-    const isUnionSearch = computed(() => store.getters.isUnionSearch);
-    const unionIndexList = computed(() => store.state.unionIndexList);
     // 用户信息
     const userMeta = computed(() => store.state.userMeta);
     // 去掉个人收藏的组列表
     const unPrivateGroupList = computed(() => props.list.filter(g => g.group_type !== 'private'));
-
     // 根据用户名判断是否时自己创建的收藏 若不是自己的则去除个人收藏选项
     const showGroupList = item => {
       return userMeta.value.username !== item.created_by ? unPrivateGroupList.value : props.list;
@@ -170,7 +157,7 @@ export default defineComponent({
       expandedMap.value = map;
     };
     /** 选中某个节点 */
-    const handleSelectItem = item => {
+    const handleSelectItem = (item: IFavoriteItem) => {
       if (!isFailFavorite(item)) {
         selectedId.value = item.id;
         emit('select-item', item);
@@ -197,16 +184,16 @@ export default defineComponent({
     );
 
     // 切换展开/收起
-    const handleToggleExpand = groupId => {
+    const handleToggleExpand = (groupId: number) => {
       expandedMap.value[groupId] = !expandedMap.value[groupId];
       expandedMap.value = { ...expandedMap.value };
     };
 
-    const showIcon = item => {
+    const showIcon = (item: IGroupItem) => {
       return expandedMap.value[item.group_id] ? 'folder-fill' : 'file-close';
     };
     /** 修改分组 */
-    const handleUpdateFavorite = async (item, tips) => {
+    const handleUpdateFavorite = async (item: IFavoriteItem, tips: string) => {
       const { params, name, group_id, display_fields, visible_type, id, index_set_id, index_set_ids, index_set_type } =
         item;
       const { ip_chooser, addition, keyword, search_fields } = params;
@@ -244,7 +231,7 @@ export default defineComponent({
     };
 
     /** 删除收藏 */
-    const deleteFavorite = async favorite_id => {
+    const deleteFavorite = async (favorite_id: number) => {
       await $http
         .request('favorite/deleteFavorite', {
           params: { favorite_id },
@@ -259,12 +246,13 @@ export default defineComponent({
         });
     };
     /** 删除分组 */
-    const deleteGroup = async group_id => {
+    const deleteGroup = async (group_id: number) => {
       await $http
         .request('favorite/deleteGroup', {
           params: { group_id },
         })
         .then(() => {
+          // deleteRefMap.value[group_id]?.hide();
           listMenuPopoverMap.value[group_id]?.hide();
           showMessagePop(t('该分组已成功解散，相关收藏项已移动到 [未分组]。'));
         })
@@ -272,8 +260,19 @@ export default defineComponent({
           console.log(err, 'err');
         });
     };
-    const handleCreateCopy = item => {
-      const { index_set_id, params, name, group_id, display_fields, visible_type, is_enable_display_fields } = item;
+    const handleCreateCopy = (item: IFavoriteItem) => {
+      const {
+        index_set_id,
+        params,
+        name,
+        group_id,
+        display_fields,
+        visible_type,
+        is_enable_display_fields,
+        index_set_type,
+        index_set_ids,
+        space_uid,
+      } = item;
       const { host_scopes, addition, keyword, search_fields } = params;
       const data = {
         name: `${name} ${t('副本')}`,
@@ -286,12 +285,12 @@ export default defineComponent({
         search_fields,
         is_enable_display_fields,
         index_set_id,
-        space_uid: spaceUid.value,
+        index_set_type,
+        space_uid,
       };
-      if (isUnionSearch.value) {
+      if (isMultiIndex(item)) {
         Object.assign(data, {
-          index_set_ids: unionIndexList.value,
-          index_set_type: 'union',
+          index_set_ids,
         });
       }
       $http
@@ -305,11 +304,11 @@ export default defineComponent({
         });
     };
     /** 刷新列表并关闭menu */
-    const handleRefreshMenu = (item, isGroup = false) => {
+    const handleRefreshMenu = (item: IFavoriteItem, isGroup = false) => {
       listMenuPopoverMap.value[isGroup ? item.group_id : item.id]?.hide();
       emit('refresh');
     };
-    const handleMenuClick = (type: string, item) => {
+    const handleMenuClick = (type: string, item: IFavoriteItem) => {
       console.log(item, type);
       switch (type) {
         case 'reset-group-name':
@@ -358,7 +357,7 @@ export default defineComponent({
               addition: item.params.addition,
               search_mode: item.search_mode,
               spaceUid: item.space_uid,
-              unionList: item.index_set_ids.map((item: number) => String(item)),
+              unionList: item.index_set_ids.map((item: string) => String(item)),
               isUnionIndex: item.index_set_type === 'union',
             });
 
@@ -383,7 +382,7 @@ export default defineComponent({
       }
     };
     /** 操作菜单默认显示的Item */
-    const defaultItem = (menu, item, isPoint = false) => (
+    const defaultItem = (menu: IMenuItem, item: IFavoriteItem, isPoint = false) => (
       <span
         key={menu.key}
         class={`menu-popover-item ${isPoint && menu.key !== 'reset-group-name' ? 'delete' : ''}`}
@@ -396,7 +395,7 @@ export default defineComponent({
       </span>
     );
     /** 操作菜单删除类显示的Item */
-    const delRender = (type: string, item) => {
+    const delRender = (type: string, item: IFavoriteItem) => {
       return (
         <div class='menu-delete-item-popover'>
           <div class='menu-delete-item-title'>{delTxtConfig[type].title}</div>
@@ -427,7 +426,7 @@ export default defineComponent({
     };
 
     /** 移动至分组Render */
-    const moveGroupRender = item => (
+    const moveGroupRender = (item: IFavoriteItem) => (
       <div class='menu-move-group-popover'>
         <div class='move-group-list'>
           {showGroupList(item)
@@ -454,7 +453,7 @@ export default defineComponent({
       </div>
     );
     /** 操作下拉操作渲染 */
-    const renderMenu = (list, item, isChild = true) => {
+    const renderMenu = (list: IMenuItem[], item: IFavoriteItem, isChild = true) => {
       const isDataExist = isChild && isFailFavorite(item);
       /** 数据源不存在的情况下，只支持删除操作 */
       const showList = isDataExist ? list.filter(item => item.key === 'delete') : list;
@@ -524,7 +523,7 @@ export default defineComponent({
       );
     };
 
-    const renderTips = item => {
+    const renderTips = (item: IFavoriteItem) => {
       const tipsData = [
         {
           title: t('创建人'),
@@ -585,17 +584,28 @@ export default defineComponent({
                 class={`bklog-icon item-icon bklog-${item.group_type === 'private' ? 'file-personal' : showIcon(item)}`}
               ></span>
               <span class='item-name'>{item.group_name}</span>
-              <span class='item-count'>{(item.favorites || []).length}</span>
-              <BklogPopover
-                ref={el => (listMenuPopoverMap.value[item.group_id] = el)}
-                options={{ offset: [50, 5], placement: 'bottom-end', appendTo: document.body, arrow: false } as any}
-                trigger='hover'
-                {...{
-                  scopedSlots: { content: () => renderMenu(groupMenu.value, item, false) },
-                }}
+              <span
+                class={[
+                  'item-count',
+                  {
+                    'is-private': item.group_type !== 'public',
+                  },
+                ]}
               >
-                <span class='bklog-icon bklog-more icon-more'></span>
-              </BklogPopover>
+                {(item.favorites || []).length}
+              </span>
+              {item.group_type === 'public' && (
+                <BklogPopover
+                  ref={el => (listMenuPopoverMap.value[item.group_id] = el)}
+                  options={{ offset: [50, 5], placement: 'bottom-end', appendTo: document.body, arrow: false } as any}
+                  trigger='hover'
+                  {...{
+                    scopedSlots: { content: () => renderMenu(groupMenu.value, item, false) },
+                  }}
+                >
+                  <span class='bklog-icon bklog-more icon-more'></span>
+                </BklogPopover>
+              )}
             </div>
             {(item.favorites || []).length > 0 && expandedMap.value[item.group_id] && (
               <div class='collect-list-item-child'>

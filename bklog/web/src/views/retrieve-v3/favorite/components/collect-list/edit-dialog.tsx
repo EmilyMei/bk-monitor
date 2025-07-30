@@ -30,6 +30,7 @@ import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
 import { ConditionOperator } from '@/store/condition-operator';
 
+import { IFavoriteItem, IGroupItem } from '../../type';
 import { getGroupNameRules, showMessagePop } from '../../utils';
 import AddGroup from './add-group';
 import $http from '@/api';
@@ -44,14 +45,14 @@ export default defineComponent({
       default: false,
     },
     data: {
-      type: Object,
+      type: Object as () => IFavoriteItem,
       default: () => ({}),
     },
     activeFavoriteID: {
-      type: String,
+      type: Number,
     },
     favoriteList: {
-      type: Array,
+      type: Array as () => IGroupItem[],
       default: () => [],
     },
   },
@@ -62,15 +63,14 @@ export default defineComponent({
     const store = useStore();
     /** 当前空间id */
     const spaceUid = computed(() => store.state.spaceUid);
-    const isUnionSearch = computed(() => store.getters.isUnionSearch);
-    const unionIndexList = computed(() => store.state.unionIndexList);
+    const isUnionSearch = computed(() => props.data.index_set_type === 'union');
     const groupNameMap = {
       unknown: t('未分组'),
       private: t('个人收藏'),
     };
 
     const groupList = ref([]);
-    const favoriteData = ref({});
+    const favoriteData = ref<IFavoriteItem>({});
     // 可见状态为公共的时候显示的收藏组
     const publicGroupList = ref([]);
     // 个人收藏 group_name替换为本人
@@ -80,7 +80,7 @@ export default defineComponent({
     const loading = ref(false);
 
     /** 获取组列表 */
-    const requestGroupList = async (isAddGroup = false, groupName?) => {
+    const requestGroupList = async () => {
       try {
         const res = await $http.request('favorite/getGroupList', {
           query: {
@@ -94,12 +94,7 @@ export default defineComponent({
         const len = groupList.value.length;
         publicGroupList.value = groupList.value.slice(1, len);
         privateGroupList.value = [groupList.value[0]];
-      } catch (error) {
-      } finally {
-        if (isAddGroup) {
-          favoriteData.value.group_id = groupList.value.find(item => item.name === groupName)?.id;
-        }
-      }
+      } catch (error) {}
     };
 
     const getAdditionValue = (addition, ipChooser) => {
@@ -150,9 +145,10 @@ export default defineComponent({
       }
       return additionString.value;
     });
-    /** 当前选中分组的favorite */
+    /** 当前选中分组的favorites */
     const currentGroupFavorite = computed(() => {
-      return props.favoriteList.find(item => item.group_id === props.data.group_id)?.favorites || [];
+      const favorites = props.favoriteList.find(item => item.group_id === props.data.group_id)?.favorites || [];
+      return favorites.filter(item => item.favorite_id !== props.data.favorite_id);
     });
     /** 分组名的规则 */
     const ruleData = computed(() => getGroupNameRules(currentGroupFavorite.value, 'name'));
@@ -170,7 +166,7 @@ export default defineComponent({
       return isClickFavoriteEdit.value ? Object.assign({}, favoriteData.value, indexItem.value) : favoriteData.value;
     });
     /** 获取收藏详情 */
-    const getFavoriteData = async id => {
+    const getFavoriteData = async (id: number) => {
       try {
         const res = await $http.request('favorite/getFavorite', { params: { id } });
         Object.assign(favoriteData.value, {
@@ -192,7 +188,9 @@ export default defineComponent({
         display_fields,
         visible_type,
         search_mode,
+        index_set_type,
         is_enable_display_fields,
+        index_set_ids,
       } = currentParamsValue.value;
       const searchParams =
         search_mode === 'sql'
@@ -208,12 +206,12 @@ export default defineComponent({
         search_fields,
         is_enable_display_fields,
         search_mode,
+        index_set_type,
         ...searchParams,
       };
       if (isUnionSearch.value) {
         Object.assign(data, {
-          index_set_ids: unionIndexList.value,
-          index_set_type: 'union',
+          index_set_ids,
         });
       }
       try {
@@ -235,10 +233,11 @@ export default defineComponent({
       });
     };
     /** 刷新 */
-    const handleRefreshGroup = (groupName: string) => {
-      requestGroupList(true, groupName);
+    const handleRefreshGroup = () => {
+      requestGroupList();
     };
-    const handleValueChange = async value => {
+    /** 弹框value值改变时的handle */
+    const handleValueChange = async (value: boolean) => {
       if (value) {
         loading.value = true;
         isClickFavoriteEdit.value = props.data.id === props.activeFavoriteID;
@@ -247,6 +246,11 @@ export default defineComponent({
         loading.value = false;
         isDisableSelect.value = favoriteData.value.visible_type === 'private';
       }
+    };
+    /** 展示的索引集，当为多索引集时，展示index_set_names字段，反之展示index_set_name */
+    const indexSetName = () => {
+      const { index_set_name: indexSetName, index_set_names: indexSetNames } = favoriteData.value;
+      return !isUnionSearch.value ? indexSetName : (indexSetNames || []).join(',');
     };
 
     return () => (
@@ -316,7 +320,7 @@ export default defineComponent({
           <bk-form-item label={t('索引集')}>
             <bk-input
               disabled={true}
-              value={favoriteData.value.index_set_name}
+              value={indexSetName()}
             ></bk-input>
           </bk-form-item>
           <bk-form-item label={t('查询语句')}>
