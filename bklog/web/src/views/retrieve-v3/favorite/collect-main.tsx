@@ -115,18 +115,6 @@ export default defineComponent({
       } catch (err) {
         favoriteLoading.value = false;
       } finally {
-        // console.log(route.params, store.state, 'store.state.indexItem');
-        // if (activeFavoriteID.value !== -1) {
-        //   let isFindCheckValue = false;
-        //   for (const gItem of favoriteList.value) {
-        //     const findFavorites = gItem.favorites.find(item => item.id === activeFavoriteID.value);
-        //     if (!!findFavorites) {
-        //       isFindCheckValue = true;
-        //       break;
-        //     }
-        //   }
-        //   if (!isFindCheckValue) handleClickitem();
-        // }
         favoriteLoading.value = false;
       }
     };
@@ -256,7 +244,6 @@ export default defineComponent({
       Object.assign(query, resolver.resolveParamsToUrl(), {
         tab: item?.favorite_type === 'chart' ? 'graphAnalysis' : 'origin',
       });
-      console.log({ ...params, ...{ activeId: item?.id } }, '====');
       router.replace({
         params,
         query,
