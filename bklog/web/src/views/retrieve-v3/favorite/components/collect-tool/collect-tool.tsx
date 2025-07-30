@@ -28,6 +28,8 @@ import { defineComponent, ref, onMounted, reactive, PropType } from 'vue';
 import BklogPopover from '@/components/bklog-popover';
 import useLocale from '@/hooks/use-locale';
 
+import AddGroup from '../collect-list/add-group';
+
 import './collect-tool.scss';
 
 export default defineComponent({
@@ -101,18 +103,12 @@ export default defineComponent({
     const handleOk = (type: 'add' | 'sort') => {
       const actions = {
         add: () => {
-          formRef.value
-            ?.validate()
-            .then(() => {
-              emit('handle', 'add-group', formData.group_name);
-            })
-            .catch(err => {
-              console.error('表单校验异常', err);
-            });
+          emit('handle', 'refresh', formData.group_name);
+          handleCancel('add');
         },
 
         sort: () => {
-          emit('handle', 'sort-change', active.value);
+          emit('handle', 'refresh', active.value);
           handleCancel('sort');
         },
       };
@@ -137,32 +133,13 @@ export default defineComponent({
     );
     /** 新增分组Render */
     const renderAddGroup = () => (
-      <div class='collect-tool-add-group'>
-        <bk-form
-          ref={formRef}
-          form-type='vertical'
-          {...{
-            props: {
-              model: formData,
-              rules: props.rules,
-            },
-          }}
-        >
-          <bk-form-item
-            label={t('分组名称')}
-            property='group_name'
-            required={true}
-          >
-            <bk-input
-              class='collect-tool-input'
-              clearable={true}
-              value={formData.group_name}
-              onChange={val => (formData.group_name = val)}
-              onEnter={() => handleOk('add')}
-            ></bk-input>
-          </bk-form-item>
-        </bk-form>
-        {renderBtnGroup('add')}
+      <div class='popover-add-group-box'>
+        <AddGroup
+          isFormType={true}
+          rules={props.rules}
+          on-cancel={() => handleCancel('add')}
+          on-submit={() => handleOk('add')}
+        />
       </div>
     );
     /** 排序Render */

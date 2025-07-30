@@ -30,7 +30,7 @@ import BklogPopover from '@/components/bklog-popover';
 import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
 import { RetrieveUrlResolver } from '@/store/url-resolver';
-import { useRouter } from 'vue-router/composables';
+import { useRouter, useRoute } from 'vue-router/composables';
 
 import { copyMessage, utcFormatDate } from '../../../../../common/util';
 import { IFavoriteItem, IGroupItem, IMenuItem } from '../../type';
@@ -62,6 +62,7 @@ export default defineComponent({
     const { t } = useLocale();
     const router = useRouter();
     const store = useStore();
+    const route = useRoute();
     const expandedMap = ref({});
     /** 当前选中的收藏 */
     const selectedId = ref(null);
@@ -168,6 +169,7 @@ export default defineComponent({
       () => props.list,
       () => {
         handleCollapse();
+        selectedId.value = Number(route.query?.activeId);
       },
       { deep: true, immediate: true },
     );

@@ -75,13 +75,7 @@ export default defineComponent({
       },
       { immediate: true },
     );
-    watch(
-      () => props.data,
-      () => {
-        checkInputFormRef.value?.clearError();
-      },
-      { deep: true },
-    );
+
     /** 创建分组 */
     const handleCreateGroup = () => {
       checkInputFormRef.value
@@ -99,6 +93,15 @@ export default defineComponent({
         .catch(err => {
           console.error('表单校验异常', err);
         });
+    };
+    /** 取消按钮的handle */
+    const handleCancel = () => {
+      if (!props.isFormType) {
+        isShowAddGroup.value = false;
+      }
+      formData.group_name = props.isCreate ? '' : props.data.group_name;
+      checkInputFormRef.value?.clearError();
+      emit('cancel', props.data);
     };
     const addRender = () => {
       if (!props.isFormType && !isShowAddGroup.value) {
@@ -148,16 +151,14 @@ export default defineComponent({
                 class='ml8'
                 size='small'
                 theme='primary'
-                onClick={() => handleCreateGroup()}
+                onClick={handleCreateGroup}
               >
                 {t('保存')}
               </bk-button>
               <bk-button
                 class='ml8'
                 size='small'
-                onClick={() => {
-                  emit('cancel', props.data);
-                }}
+                onClick={handleCancel}
               >
                 {t('取消')}
               </bk-button>
@@ -166,14 +167,11 @@ export default defineComponent({
             <div class='operate-button'>
               <span
                 class='bk-icon icon-check-line submit-icon'
-                onClick={() => handleCreateGroup()}
+                onClick={handleCreateGroup}
               ></span>
               <span
                 class='bk-icon icon-close-line-2 close-icon'
-                onClick={() => {
-                  isShowAddGroup.value = false;
-                  formData.group_name = '';
-                }}
+                onClick={handleCancel}
               ></span>
             </div>
           )}

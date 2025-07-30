@@ -38,9 +38,8 @@ import CollectHead from './components/collect-head/collect-head';
 import CollectList from './components/collect-list/collect-list';
 import CollectTab from './components/collect-tab/collect-tab';
 import CollectTool from './components/collect-tool/collect-tool';
-import { getGroupNameRules, handleUpdateGroupName } from './utils';
-
 import { IGroupItem, IFavoriteItem } from './type';
+import { getGroupNameRules } from './utils';
 
 import './collect-main.scss';
 
@@ -59,8 +58,6 @@ export default defineComponent({
     const collectToolRef = ref(null);
     const favoriteLoading = ref(false);
     const activeTab = ref('origin');
-    /** 当前业务名 */
-    const spaceUid = computed(() => store.state.spaceUid);
     /** 是否仅查看当前索引集 */
     const isShowCurrentIndexList = ref(RetrieveHelper.isViewCurrentIndex);
     const isUnionSearch = computed(() => store.getters.isUnionSearch);
@@ -105,17 +102,6 @@ export default defineComponent({
     const handleTabChange = (tab: string) => {
       activeTab.value = tab;
     };
-    /** 调整排序 */
-    const handleSortChange = () => {
-      getFavoriteList();
-    };
-    /** 新增收藏分组 */
-    const handleAddGroup = async (groupName: string) => {
-      if (!groupName.trim()) return;
-      await handleUpdateGroupName({ group_new_name: groupName }, spaceUid.value);
-      collectToolRef.value?.handleCancel('add');
-      getFavoriteList();
-    };
     /** 是否仅查看当前索引集 */
     const handleChangeIndex = (val: boolean) => {
       isShowCurrentIndexList.value = val;
@@ -125,11 +111,11 @@ export default defineComponent({
     const getFavoriteList = async () => {
       try {
         favoriteLoading.value = true;
-        // isHidden.value = false;
         await store.dispatch('requestFavoriteList');
       } catch (err) {
         favoriteLoading.value = false;
       } finally {
+        // console.log(route.params, store.state, 'store.state.indexItem');
         // if (activeFavoriteID.value !== -1) {
         //   let isFindCheckValue = false;
         //   for (const gItem of favoriteList.value) {
@@ -175,10 +161,11 @@ export default defineComponent({
 
     const originFavoriteList = computed(() => filterDataType('search'));
     const chartFavoriteList = computed(() => filterDataType('chart'));
+    /** 当前要展示的收藏列表内容 */
     const showList = computed(() =>
       activeTab.value === 'origin' ? originFavoriteList.value : chartFavoriteList.value,
     );
-
+    /** 过滤后要展示的收藏列表内容 */
     const filterDataList = computed(() =>
       showList.value.map((group: IGroupItem) => ({
         ...group,
@@ -214,6 +201,7 @@ export default defineComponent({
       },
       { immediate: true },
     );
+    /** 刷新 */
     const handleRefresh = () => {
       getFavoriteList();
     };
@@ -260,7 +248,7 @@ export default defineComponent({
       const params = isUnionIndex
         ? { ...route.params, indexId: undefined }
         : { ...route.params, indexId: ids?.[0] ? `${ids?.[0]}` : route.params?.indexId };
-      const query = { ...route.query };
+      const query = { ...route.query, activeId: String(item?.id) };
       const resolver = new RetrieveUrlResolver({
         ...routeParams,
         datePickerValue: store.state.indexItem.datePickerValue,
@@ -268,6 +256,7 @@ export default defineComponent({
       Object.assign(query, resolver.resolveParamsToUrl(), {
         tab: item?.favorite_type === 'chart' ? 'graphAnalysis' : 'origin',
       });
+      console.log({ ...params, ...{ activeId: item?.id } }, '====');
       router.replace({
         params,
         query,
@@ -357,9 +346,9 @@ export default defineComponent({
     /** 工具栏相关操作 */
     const toolHandle = (type: string, data) => {
       switch (type) {
-        /** 新增分组 */
-        case 'add-group':
-          handleAddGroup(data);
+        /** 刷新收藏列表 */
+        case 'refresh':
+          handleRefresh();
           break;
         /** 是否仅查看当前索引集 */
         case 'change-index':
@@ -368,10 +357,6 @@ export default defineComponent({
         /** 全部展开/收起 */
         case 'collapse':
           handleCollapseList(data);
-          break;
-        /** 调整排序 */
-        case 'sort-change':
-          handleSortChange();
           break;
       }
     };
