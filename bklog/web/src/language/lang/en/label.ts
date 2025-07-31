@@ -818,4 +818,6 @@ export default {
     'It will keep the time like "last xxx" and load it according to the visitor\'s last xxx time',
   临时分享: 'Temporary Share',
   分享: 'Share',
+  收藏排序: 'Favorite Sort',
+  解散: 'Dissolve',
 };

@@ -293,6 +293,7 @@ export default defineComponent({
             required={true}
           >
             <bk-select
+              v-bk-tooltips={{ content: t('私有的只支持默认的“个人收藏”'), disabled: !isDisableSelect.value }}
               clearable={false}
               disabled={isDisableSelect.value}
               searchable={true}

@@ -68,9 +68,10 @@ export default defineComponent({
     const selectedId = ref(null);
     const unknownGroupID = ref(0);
     const privateGroupID = ref(0);
-    const deleteRefMap = ref({});
     const currentFavorite = ref();
     const listMenuPopoverMap = ref({});
+    const delData = ref({});
+    const delDialogShow = ref(false);
     /** 删除操作相关key list */
     const deleteKey = ['dismiss-group', 'delete'];
     const childMenu = ref([
@@ -226,42 +227,30 @@ export default defineComponent({
         })
         .then(() => {
           showMessagePop(tips);
+          handleRefreshMenu(item);
         })
         .catch(err => {
           console.log(err, 'err');
         });
     };
 
-    /** 删除收藏 */
-    const deleteFavorite = async (favorite_id: number) => {
+    /** 删除分组/删除收藏 */
+    const handleDeleteApi = async (type: string, id: number, item) => {
+      const isDel = type === 'delete';
+      const url = `favorite/${isDel ? 'deleteFavorite' : 'deleteGroup'}`;
       await $http
-        .request('favorite/deleteFavorite', {
-          params: { favorite_id },
+        .request(url, {
+          params: isDel ? { favorite_id: id } : { group_id: id },
         })
         .then(() => {
-          // deleteRefMap.value[favorite_id]?.hide();
-          listMenuPopoverMap.value[favorite_id]?.hide();
-          showMessagePop(t('删除成功'));
+          showMessagePop(isDel ? t('删除成功') : t('该分组已成功解散，相关收藏项已移动到 [未分组]。'));
+          handleRefreshMenu(item);
         })
         .catch(err => {
           console.log(err, 'err');
         });
     };
-    /** 删除分组 */
-    const deleteGroup = async (group_id: number) => {
-      await $http
-        .request('favorite/deleteGroup', {
-          params: { group_id },
-        })
-        .then(() => {
-          // deleteRefMap.value[group_id]?.hide();
-          listMenuPopoverMap.value[group_id]?.hide();
-          showMessagePop(t('该分组已成功解散，相关收藏项已移动到 [未分组]。'));
-        })
-        .catch(err => {
-          console.log(err, 'err');
-        });
-    };
+    /** 克隆 */
     const handleCreateCopy = (item: IFavoriteItem) => {
       const {
         index_set_id,
@@ -324,30 +313,22 @@ export default defineComponent({
           isShowEdit.value = true;
           break;
         case 'dismiss-group': // 解散分组
-          deleteGroup(item.group_id).then(() => {
-            handleRefreshMenu(item, true);
-          });
+          handleDeleteApi(type, item.group_id, item);
           break;
         case 'delete': // 删除收藏
-          deleteFavorite(item.id).then(() => {
-            handleRefreshMenu(item);
-          });
+          handleDeleteApi(type, item.id, item);
           break;
         case 'move-group': // 移动分组
           const visible_type = item.group_id === privateGroupID.value ? 'private' : 'public';
           Object.assign(item, { visible_type });
-          handleUpdateFavorite(item, t('收藏项移动成功。')).then(() => {
-            handleRefreshMenu(item);
-          });
+          handleUpdateFavorite(item, t('收藏项移动成功。'));
           break;
         case 'remove-group': // 从组中移除收藏（移动至未分组）
           Object.assign(item, {
             visible_type: 'public',
             group_id: unknownGroupID.value,
           });
-          handleUpdateFavorite(item, t('收藏项已移动到 [未分组]。')).then(() => {
-            handleRefreshMenu(item);
-          });
+          handleUpdateFavorite(item, t('收藏项已移动到 [未分组]。'));
           break;
         /** 分享/新标签页 */
         case 'share':
@@ -389,7 +370,8 @@ export default defineComponent({
         key={menu.key}
         class={`menu-popover-item ${isPoint && menu.key !== 'reset-group-name' ? 'delete' : ''}`}
         onClick={() => {
-          !isPoint && handleMenuClick(menu.key, item);
+          // !isPoint && handleMenuClick(menu.key, item);
+          !isPoint ? handleMenuClick(menu.key, item) : handleDelClick(menu.key, item);
         }}
       >
         {menu.label}
@@ -417,7 +399,7 @@ export default defineComponent({
               class='ml8'
               size='small'
               onClick={() => {
-                listMenuPopoverMap.value[item[delTxtConfig[type].idKey]]?.hide();
+                delDialogShow.value = false;
               }}
             >
               {t('取消')}
@@ -425,6 +407,14 @@ export default defineComponent({
           </div>
         </div>
       );
+    };
+    /** 显示删除操作弹框 */
+    const handleDelClick = (type: string, item: IFavoriteItem) => {
+      delData.value = {
+        key: type,
+        item,
+      };
+      delDialogShow.value = true;
     };
 
     /** 移动至分组Render */
@@ -464,18 +454,7 @@ export default defineComponent({
           {showList.map(menu => {
             /** 删除类的操作 */
             if (deleteKey.includes(menu.key)) {
-              return (
-                <BklogPopover
-                  ref={el => (deleteRefMap.value[item[delTxtConfig[menu.key].idKey]] = el)}
-                  options={{ placement: 'bottom' } as any}
-                  trigger='click'
-                  {...{
-                    scopedSlots: { content: () => delRender(menu.key, item) },
-                  }}
-                >
-                  {defaultItem(menu, item, true)}
-                </BklogPopover>
-              );
+              return defaultItem(menu, item, true);
             }
             /** 移动到分组 */
             if (menu.key === 'move-group') {
@@ -652,6 +631,15 @@ export default defineComponent({
             )}
           </div>
         ))}
+        {/* 删除操作弹窗 */}
+        <bk-dialog
+          show-footer={false}
+          theme='primary'
+          value={delDialogShow.value}
+        >
+          {delDialogShow.value && delRender(delData.value.key, delData.value.item)}
+        </bk-dialog>
+        {/* 编辑收藏弹窗 */}
         <EditDialog
           activeFavoriteID={selectedId.value}
           data={currentFavorite.value}

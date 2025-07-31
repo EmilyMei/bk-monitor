@@ -159,7 +159,7 @@
 }
 .menu-delete-item-popover {
   padding: 16px;
-  width: 280px;
+  width: 100%;
   .menu-delete-item-title {
     color: #313238;
     margin-bottom: 16px;
@@ -171,6 +171,7 @@
     margin-bottom: 5px;
   }
   .menu-delete-item-btns {
+    width: 100%;
     margin-top: 20px;
     text-align: right;
     .ml8 {
