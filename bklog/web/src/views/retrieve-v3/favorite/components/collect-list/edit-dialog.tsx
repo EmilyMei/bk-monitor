@@ -30,10 +30,10 @@ import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
 import { ConditionOperator } from '@/store/condition-operator';
 
-import { IFavoriteItem, IGroupItem } from '../../type';
-import { getGroupNameRules, showMessagePop } from '../../utils';
+import { useFavorite } from '../../hooks/useFavorite';
+import { IFavoriteItem, IGroupItem } from '../../types';
+import { getGroupNameRules } from '../../utils';
 import AddGroup from './add-group';
-import $http from '@/api';
 
 import './edit-dialog.scss';
 
@@ -79,14 +79,12 @@ export default defineComponent({
     const isDisableSelect = ref(false);
     const loading = ref(false);
 
+    // 使用自定义 hook 管理状态
+    const { getFavoriteData, requestGroupList, handleUpdateFavorite } = useFavorite();
+
     /** 获取组列表 */
-    const requestGroupList = async () => {
-      try {
-        const res = await $http.request('favorite/getGroupList', {
-          query: {
-            space_uid: spaceUid.value,
-          },
-        });
+    const handleRequestGroupList = async () => {
+      requestGroupList(spaceUid.value, res => {
         groupList.value = res.data.map(item => ({
           ...item,
           name: groupNameMap[item.group_type] ?? item.name,
@@ -94,7 +92,7 @@ export default defineComponent({
         const len = groupList.value.length;
         publicGroupList.value = groupList.value.slice(1, len);
         privateGroupList.value = [groupList.value[0]];
-      } catch (error) {}
+      });
     };
 
     const getAdditionValue = (addition, ipChooser) => {
@@ -165,84 +163,31 @@ export default defineComponent({
     const currentParamsValue = computed(() => {
       return isClickFavoriteEdit.value ? Object.assign({}, favoriteData.value, indexItem.value) : favoriteData.value;
     });
-    /** 获取收藏详情 */
-    const getFavoriteData = async (id: number) => {
-      try {
-        const res = await $http.request('favorite/getFavorite', { params: { id } });
-        Object.assign(favoriteData.value, {
-          ...res.data,
-          ...res.data.params,
-        });
-      } catch {}
-    };
 
     /** 修改收藏 */
-    const handleUpdateFavorite = async () => {
-      const {
-        ip_chooser,
-        addition,
-        keyword,
-        search_fields,
-        name,
-        group_id,
-        display_fields,
-        visible_type,
-        search_mode,
-        index_set_type,
-        is_enable_display_fields,
-        index_set_ids,
-      } = currentParamsValue.value;
-      const searchParams =
-        search_mode === 'sql'
-          ? { keyword, addition: [] }
-          : { addition: (addition || []).filter(v => v.field !== '_ip-select_'), keyword: '*' };
-
-      const data = {
-        name,
-        group_id,
-        display_fields,
-        visible_type,
-        ip_chooser,
-        search_fields,
-        is_enable_display_fields,
-        search_mode,
-        index_set_type,
-        ...searchParams,
-      };
-      if (isUnionSearch.value) {
-        Object.assign(data, {
-          index_set_ids,
-        });
-      }
-      try {
-        const res = await $http.request('favorite/updateFavorite', {
-          params: { id: props.data.id },
-          data,
-        });
-        if (res.result) {
-          showMessagePop(t('保存成功'));
-          emit('refresh-group', res.result);
-          handleCancel();
-        }
-      } catch (error) {}
+    const updateFavorite = (item: IFavoriteItem) => {
+      handleUpdateFavorite(item, data => {
+        emit('refresh-group', data);
+        handleCancel();
+      });
     };
 
     const handleSubmitFormData = () => {
       formRef.value.validate().then(() => {
-        handleUpdateFavorite();
+        updateFavorite(currentParamsValue.value);
       });
     };
     /** 刷新 */
     const handleRefreshGroup = () => {
-      requestGroupList();
+      handleRequestGroupList();
     };
     /** 弹框value值改变时的handle */
     const handleValueChange = async (value: boolean) => {
       if (value) {
         loading.value = true;
         isClickFavoriteEdit.value = props.data.id === props.activeFavoriteID;
-        await getFavoriteData(props.data.id);
-        await requestGroupList();
+        await getFavoriteData(props.data.id, favoriteData.value);
+        await handleRequestGroupList();
         loading.value = false;
         isDisableSelect.value = favoriteData.value.visible_type === 'private';
       }
@@ -313,7 +258,10 @@ export default defineComponent({
               >
                 <AddGroup
                   rules={ruleData.value}
-                  on-submit={handleRefreshGroup}
+                  on-submit={id => {
+                    handleRefreshGroup();
+                    favoriteData.value.group_id = id;
+                  }}
                 />
               </div>
             </bk-select>

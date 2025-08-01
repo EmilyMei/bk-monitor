@@ -29,8 +29,9 @@ import { computed, defineComponent, ref, reactive, watch, PropType } from 'vue';
 import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
 
-import { IFavoriteItem } from '../../type';
-import { handleUpdateGroupName } from '../../utils';
+import { useFavorite } from '../../hooks/useFavorite';
+import { IFavoriteItem } from '../../types';
+import { handleApiError } from '../../utils';
 
 import './add-group.scss';
 
@@ -66,11 +67,13 @@ export default defineComponent({
     const formData = reactive({ group_name: '' });
     const isShowAddGroup = ref(false);
     const checkInputFormRef = ref(null);
+    // 使用自定义 hook 管理状态
+    const { updateGroupName } = useFavorite();
     watch(
       () => props.isCreate,
       val => {
         if (!val) {
-          formData.group_name = props.data.group_name;
+          formData.group_name = props.data.group_name || '';
         }
       },
       { immediate: true },
@@ -86,12 +89,13 @@ export default defineComponent({
           const params = props.isCreate
             ? { group_new_name: formData.group_name }
             : { group_new_name: formData.group_name, group_id };
-          await handleUpdateGroupName(params, spaceUid.value, props.isCreate);
-          isShowAddGroup.value = false;
-          emit('submit', formData.group_name);
+          updateGroupName(params, spaceUid.value, props.isCreate, res => {
+            isShowAddGroup.value = false;
+            emit('submit', res.id, formData.group_name);
+          });
         })
         .catch(err => {
-          console.error('表单校验异常', err);
+          handleApiError(err, '创建分组失败');
         });
     };
     /** 取消按钮的handle */
@@ -148,7 +152,6 @@ export default defineComponent({
           {props.isFormType ? (
             <div class='add-group-from-btns'>
               <bk-button
-                class='ml8'
                 size='small'
                 theme='primary'
                 onClick={handleCreateGroup}

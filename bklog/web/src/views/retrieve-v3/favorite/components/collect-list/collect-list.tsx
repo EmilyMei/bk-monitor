@@ -29,15 +29,14 @@ import { defineComponent, ref, watch, computed } from 'vue';
 import BklogPopover from '@/components/bklog-popover';
 import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
-import { RetrieveUrlResolver } from '@/store/url-resolver';
-import { useRouter, useRoute } from 'vue-router/composables';
+import { useRoute } from 'vue-router/composables';
 
-import { copyMessage, utcFormatDate } from '../../../../../common/util';
-import { IFavoriteItem, IGroupItem, IMenuItem } from '../../type';
-import { getGroupNameRules, showMessagePop } from '../../utils';
+import { utcFormatDate } from '../../../../../common/util';
+import { useFavorite } from '../../hooks/useFavorite';
+import { IFavoriteItem, IGroupItem, IMenuItem } from '../../types';
+import { getGroupNameRules } from '../../utils';
 import AddGroup from './add-group';
 import EditDialog from './edit-dialog';
-import $http from '@/api';
 
 import './collect-list.scss';
 
@@ -60,7 +59,6 @@ export default defineComponent({
   emits: ['refresh', 'select-item'],
   setup(props, { emit }) {
     const { t } = useLocale();
-    const router = useRouter();
     const store = useStore();
     const route = useRoute();
     const expandedMap = ref({});
@@ -72,6 +70,8 @@ export default defineComponent({
     const listMenuPopoverMap = ref({});
     const delData = ref({});
     const delDialogShow = ref(false);
+    // 使用自定义 hook
+    const { handleNewLink, handleDeleteApi, handleCreateCopy, handleUpdateFavorite } = useFavorite();
     /** 删除操作相关key list */
     const deleteKey = ['dismiss-group', 'delete'];
     const childMenu = ref([
@@ -114,7 +114,7 @@ export default defineComponent({
         label: t('解散分组'),
       },
     ]);
-
+    /** 删除操作相关配置 */
     const delTxtConfig = {
       delete: {
         label: t('删除'),
@@ -136,10 +136,59 @@ export default defineComponent({
     const userMeta = computed(() => store.state.userMeta);
     // 去掉个人收藏的组列表
     const unPrivateGroupList = computed(() => props.list.filter(g => g.group_type !== 'private'));
+
     // 根据用户名判断是否时自己创建的收藏 若不是自己的则去除个人收藏选项
     const showGroupList = item => {
       return userMeta.value.username !== item.created_by ? unPrivateGroupList.value : props.list;
     };
+    // 所有操作的处理函数集合
+    const actionHandlers = ref({
+      /* 重置分组名称 */
+      'reset-group-name': item => handleRefreshMenu(item, true),
+
+      /* 创建副本 */
+      'create-copy': item => handleCreateCopy(item, isMultiIndex(item), () => handleRefreshMenu(item)),
+
+      /* 编辑分组 */
+      edit: item => {
+        currentFavorite.value = item;
+        isShowEdit.value = true;
+      },
+
+      /* 解散分组 */
+      'dismiss-group': item => handleDeleteApi('dismiss-group', item.group_id, () => handleRefreshMenu(item)),
+
+      /* 删除收藏 */
+      delete: item => handleDeleteApi('delete', item.id, () => handleRefreshMenu(item)),
+
+      /* 移动分组 */
+      'move-group': item => {
+        const visible_type = item.group_id === privateGroupID.value ? 'private' : 'public';
+        updateFavorite(
+          {
+            ...item,
+            visible_type,
+          },
+          t('收藏项移动成功。'),
+        );
+      },
+
+      /* 移出分组（移动到未分组） */
+      'remove-group': item => {
+        updateFavorite(
+          {
+            ...item,
+            visible_type: 'public',
+            group_id: unknownGroupID.value,
+          },
+          t('收藏项已移动到 [未分组]。'),
+        );
+      },
+
+      /* 分享/新标签页（共用处理逻辑） */
+      share: item => handleNewLink(item, 'share'),
+      'new-link': item => handleNewLink(item, 'new-link'),
+    });
     /** 分组名校验规则 */
     const ruleData = computed(() => getGroupNameRules(props.list));
     /** 是否展示失效 */
@@ -195,182 +244,42 @@ export default defineComponent({
     const showIcon = (item: IGroupItem) => {
       return expandedMap.value[item.group_id] ? 'folder-fill' : 'file-close';
     };
-    /** 修改分组 */
-    const handleUpdateFavorite = async (item: IFavoriteItem, tips: string) => {
-      const { params, name, group_id, display_fields, visible_type, id, index_set_id, index_set_ids, index_set_type } =
-        item;
-      const { ip_chooser, addition, keyword, search_fields } = params;
-      const data = {
-        name,
-        group_id,
-        display_fields,
-        visible_type,
-        ip_chooser,
-        addition,
-        keyword,
-        search_fields,
-        index_set_type,
-      };
-      if (index_set_type === 'union') {
-        Object.assign(data, {
-          index_set_ids,
-        });
-      } else {
-        Object.assign(data, {
-          index_set_id,
-        });
-      }
-      await $http
-        .request('favorite/updateFavorite', {
-          params: { id },
-          data,
-        })
-        .then(() => {
-          showMessagePop(tips);
-          handleRefreshMenu(item);
-        })
-        .catch(err => {
-          console.log(err, 'err');
-        });
-    };
 
-    /** 删除分组/删除收藏 */
-    const handleDeleteApi = async (type: string, id: number, item) => {
-      const isDel = type === 'delete';
-      const url = `favorite/${isDel ? 'deleteFavorite' : 'deleteGroup'}`;
-      await $http
-        .request(url, {
-          params: isDel ? { favorite_id: id } : { group_id: id },
-        })
-        .then(() => {
-          showMessagePop(isDel ? t('删除成功') : t('该分组已成功解散，相关收藏项已移动到 [未分组]。'));
+    /** 修改分组 */
+    const updateFavorite = async (item: IFavoriteItem, tips: string) => {
+      handleUpdateFavorite(
+        item,
+        () => {
           handleRefreshMenu(item);
-        })
-        .catch(err => {
-          console.log(err, 'err');
-        });
-    };
-    /** 克隆 */
-    const handleCreateCopy = (item: IFavoriteItem) => {
-      const {
-        index_set_id,
-        params,
-        name,
-        group_id,
-        display_fields,
-        visible_type,
-        is_enable_display_fields,
-        index_set_type,
-        index_set_ids,
-        space_uid,
-      } = item;
-      const { host_scopes, addition, keyword, search_fields } = params;
-      const data = {
-        name: `${name} ${t('副本')}`,
-        group_id,
-        display_fields,
-        visible_type,
-        host_scopes,
-        addition,
-        keyword,
-        search_fields,
-        is_enable_display_fields,
-        index_set_id,
-        index_set_type,
-        space_uid,
-      };
-      if (isMultiIndex(item)) {
-        Object.assign(data, {
-          index_set_ids,
-        });
-      }
-      $http
-        .request('favorite/createFavorite', { data })
-        .then(() => {
-          showMessagePop(t('创建成功'));
-          handleRefreshMenu(item);
-        })
-        .catch(err => {
-          console.log(err);
-        });
+        },
+        tips,
+        false,
+      );
     };
     /** 刷新列表并关闭menu */
     const handleRefreshMenu = (item: IFavoriteItem, isGroup = false) => {
       listMenuPopoverMap.value[isGroup ? item.group_id : item.id]?.hide();
       emit('refresh');
     };
+    /** 菜单操作 */
     const handleMenuClick = (type: string, item: IFavoriteItem) => {
-      console.log(item, type);
-      switch (type) {
-        case 'reset-group-name':
-          handleRefreshMenu(item, true);
-          break;
-        case 'create-copy':
-          handleCreateCopy(item);
-          break;
-        case 'edit': // 编辑分组
-          currentFavorite.value = item;
-          isShowEdit.value = true;
-          break;
-        case 'dismiss-group': // 解散分组
-          handleDeleteApi(type, item.group_id, item);
-          break;
-        case 'delete': // 删除收藏
-          handleDeleteApi(type, item.id, item);
-          break;
-        case 'move-group': // 移动分组
-          const visible_type = item.group_id === privateGroupID.value ? 'private' : 'public';
-          Object.assign(item, { visible_type });
-          handleUpdateFavorite(item, t('收藏项移动成功。'));
-          break;
-        case 'remove-group': // 从组中移除收藏（移动至未分组）
-          Object.assign(item, {
-            visible_type: 'public',
-            group_id: unknownGroupID.value,
-          });
-          handleUpdateFavorite(item, t('收藏项已移动到 [未分组]。'));
-          break;
-        /** 分享/新标签页 */
-        case 'share':
-        case 'new-link':
-          {
-            const params = { indexId: item.index_set_id };
-            const resolver = new RetrieveUrlResolver({
-              ...item.params,
-              addition: item.params.addition,
-              search_mode: item.search_mode,
-              spaceUid: item.space_uid,
-              unionList: item.index_set_ids.map((item: string) => String(item)),
-              isUnionIndex: item.index_set_type === 'union',
-            });
-
-            const routeData = {
-              name: 'retrieve',
-              params,
-              query: resolver.resolveParamsToUrl(),
-            };
-
-            let shareUrl = (window as any).SITE_URL;
-            if (!shareUrl.startsWith('/')) shareUrl = `/${shareUrl}`;
-            if (!shareUrl.endsWith('/')) shareUrl += '/';
-
-            shareUrl = `${window.location.origin + shareUrl}${router.resolve(routeData).href}`;
-            if (type === 'new-link') {
-              window.open(shareUrl, '_blank');
-            } else {
-              copyMessage(shareUrl, t('复制分享链接成功，通过链接，可直接查询对应收藏日志。'));
-            }
-          }
-          break;
+      const handler = actionHandlers.value[type];
+      if (handler) {
+        handler(item);
+      } else {
+        console.warn(`未定义的操作类型: ${type}`);
       }
     };
+
     /** 操作菜单默认显示的Item */
     const defaultItem = (menu: IMenuItem, item: IFavoriteItem, isPoint = false) => (
       <span
         key={menu.key}
-        class={`menu-popover-item ${isPoint && menu.key !== 'reset-group-name' ? 'delete' : ''}`}
+        class={[
+          'menu-popover-item',
+          { delete: isPoint && menu.key !== 'reset-group-name', 'no-border': item?.id && isFailFavorite(item) },
+        ]}
         onClick={() => {
-          // !isPoint && handleMenuClick(menu.key, item);
           !isPoint ? handleMenuClick(menu.key, item) : handleDelClick(menu.key, item);
         }}
       >
@@ -588,6 +497,7 @@ export default defineComponent({
                 </BklogPopover>
               )}
             </div>
+            {/* 子收藏夹列表 */}
             {(item.favorites || []).length > 0 && expandedMap.value[item.group_id] && (
               <div class='collect-list-item-child'>
                 {item.favorites.map(child => (
@@ -607,9 +517,11 @@ export default defineComponent({
                         scopedSlots: { content: () => renderTips(child) },
                       }}
                     >
-                      <span class='child-name'>{child.name}</span>
-                      {isFailFavorite(child) && <span class='bklog-icon bklog-shixiao child-icon'></span>}
-                      {isMultiIndex(child) && <span class='bk-icon icon-panels blue-icon'></span>}
+                      <span class='child-name'>
+                        {child.name}
+                        {isFailFavorite(child) && <span class='bklog-icon bklog-shixiao child-icon'></span>}
+                        {isMultiIndex(child) && <span class='bk-icon icon-panels blue-icon'></span>}
+                      </span>
                     </BklogPopover>
 
                     {/* 数据源不存在 */}

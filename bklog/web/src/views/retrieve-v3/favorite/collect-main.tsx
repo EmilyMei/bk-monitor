@@ -28,142 +28,134 @@ import { computed, defineComponent, ref, watch } from 'vue';
 
 import useLocale from '@/hooks/use-locale';
 import useStore from '@/hooks/use-store';
-import { RetrieveUrlResolver } from '@/store/url-resolver';
-import { useRouter, useRoute } from 'vue-router/composables';
 
-import { deepClone } from '../../../common/util';
-import { BK_LOG_STORAGE, SEARCH_MODE_DIC } from '../../../store/store.type';
 import RetrieveHelper from '../../retrieve-helper';
 import CollectHead from './components/collect-head/collect-head';
 import CollectList from './components/collect-list/collect-list';
 import CollectTab from './components/collect-tab/collect-tab';
 import CollectTool from './components/collect-tool/collect-tool';
-import { IGroupItem, IFavoriteItem } from './type';
+import { useFavorite } from './hooks/useFavorite';
+import { ITabItem } from './types';
 import { getGroupNameRules } from './utils';
 
 import './collect-main.scss';
 
 export default defineComponent({
-  name: 'CollectMain',
+  name: 'CollectMainNew',
+
   props: {
-    isShowCollect: { type: Boolean, required: true },
+    isShowCollect: {
+      type: Boolean,
+      required: true,
+    },
   },
+
   emits: ['show-change'],
 
   setup(props, { emit }) {
     const { t } = useLocale();
     const store = useStore();
-    const router = useRouter();
-    const route = useRoute();
+
+    // 使用自定义 hook 管理状态
+    const {
+      favoriteLoading,
+      activeTab,
+      isShowCurrentIndexList,
+      searchValue,
+      isCollapseList,
+      activeFavorite,
+      originFavoriteList,
+      chartFavoriteList,
+      filterDataList,
+      isSearchEmpty,
+      getFavoriteList,
+      selectFavoriteItem,
+      handleSearchInput,
+    } = useFavorite();
+
     const collectToolRef = ref(null);
-    const favoriteLoading = ref(false);
-    const activeTab = ref('origin');
-    /** 是否仅查看当前索引集 */
-    const isShowCurrentIndexList = ref(RetrieveHelper.isViewCurrentIndex);
-    const isUnionSearch = computed(() => store.getters.isUnionSearch);
-    const unionIndexList = computed(() => store.state.unionIndexList);
-    const indexSetId = computed(() => `${store.getters.indexId}`);
-    const list = computed(() => store.state.favoriteList || []);
-    const indexSetList = computed(() => store.state.retrieve.indexSetList ?? []);
-    const activeFavorite = ref({});
-    /** 输入框搜索内容 */
-    const searchValue = ref('');
-    /** 是否展开全部列表 */
-    const isCollapseList = ref(true);
 
-    const isSearchEmpty = computed(
-      () => !!searchValue.value?.length && filterDataList.value.filter(item => item.favorites.length).length === 0,
-    );
-    /** 分组名校验规则 */
-    const rulesData = computed(() => getGroupNameRules(filterDataList.value));
-
-    /** 展开/收起 收藏夹  */
-    const handleCollapse = () => {
-      emit('show-change', !props.isShowCollect);
-    };
-    /** 列表展开收起 */
-    const handleCollapseList = (val: boolean) => {
-      isCollapseList.value = val;
-    };
-    /** 根据不同tab类型获取要展示的列表 */
-    const filterDataType = (dataType: string) => {
-      return favoriteList.value.map(({ group_id, group_name, group_type, favorites }) => ({
-        group_id,
-        group_name,
-        group_type,
-        favorites: favorites.filter((item: IFavoriteItem) => item.favorite_type === dataType),
-      }));
-    };
-    /** 获取每个tab类型数据量 */
-    const getTypeCount = (data: IGroupItem[]) => {
+    /**
+     * 获取每个tab类型数据量
+     */
+    const getTypeCount = (data: any[]): number => {
       return data.reduce((pre: number, cur) => pre + cur.favorites.length, 0);
     };
-    /** tab 切换 */
+
+    /**
+     * Tab 切换处理
+     */
     const handleTabChange = (tab: string) => {
       activeTab.value = tab;
     };
-    /** 是否仅查看当前索引集 */
+
+    /**
+     * 是否仅查看当前索引集
+     */
     const handleChangeIndex = (val: boolean) => {
       isShowCurrentIndexList.value = val;
       RetrieveHelper.setViewCurrentIndexSet(val);
     };
-    /** 获取列表数据 */
-    const getFavoriteList = async () => {
-      try {
-        favoriteLoading.value = true;
-        await store.dispatch('requestFavoriteList');
-      } catch (err) {
-        favoriteLoading.value = false;
-      } finally {
-        favoriteLoading.value = false;
+
+    /**
+     * 展开/收起收藏夹
+     */
+    const handleCollapse = () => {
+      emit('show-change', !props.isShowCollect);
+    };
+
+    /**
+     * 列表展开收起
+     */
+    const handleCollapseList = (val: boolean) => {
+      isCollapseList.value = val;
+    };
+
+    /**
+     * 刷新处理
+     */
+    const handleRefresh = () => {
+      getFavoriteList();
+    };
+
+    /**
+     * 渲染空状态
+     */
+    const renderEmpty = (emptyType: string) => {
+      return (
+        <div class='data-empty-box'>
+          <bk-exception
+            class='exception-wrap-item exception-part'
+            scene='part'
+            type={emptyType}
+          />
+        </div>
+      );
+    };
+
+    /**
+     * 工具栏相关操作
+     */
+    const toolHandle = (type: string, data: any) => {
+      switch (type) {
+        case 'refresh':
+          handleRefresh();
+          break;
+        case 'change-index':
+          handleChangeIndex(data);
+          break;
+        case 'collapse':
+          handleCollapseList(data);
+          break;
       }
     };
-    const allFavoriteNumber = computed(() => list.value.reduce((pre: number, cur) => pre + cur.favorites.length, 0));
 
-    const favoriteList = computed(() => {
-      let data = list.value ?? [];
-      if (isShowCurrentIndexList.value) {
-        data = (list.value ?? []).map(({ group_id, group_name, group_type, favorites }) => {
-          return {
-            group_id,
-            group_name,
-            group_type,
-            favorites: favorites.filter(item => {
-              if (isUnionSearch.value) {
-                return (
-                  item.index_set_type === 'union' &&
-                  (item.index_set_ids ?? []).every(id => unionIndexList.value.includes(`${id}`))
-                );
-              }
-              return item.index_set_type === 'single' && `${item.index_set_id}` === indexSetId.value;
-            }),
-          };
-        });
-      }
-      const provideFavorite = data[0];
-      const publicFavorite = data[data.length - 1];
-      const sortFavoriteList = data.slice(1, data.length - 1).sort((a, b) => a.group_name.localeCompare(b.group_name));
-      const sortAfterList = [provideFavorite, ...sortFavoriteList, publicFavorite];
-      return sortAfterList.filter(item => item !== undefined);
-    });
-
-    const originFavoriteList = computed(() => filterDataType('search'));
-    const chartFavoriteList = computed(() => filterDataType('chart'));
-    /** 当前要展示的收藏列表内容 */
-    const showList = computed(() =>
-      activeTab.value === 'origin' ? originFavoriteList.value : chartFavoriteList.value,
-    );
-    /** 过滤后要展示的收藏列表内容 */
-    const filterDataList = computed(() =>
-      showList.value.map((group: IGroupItem) => ({
-        ...group,
-        favorites: group.favorites.filter(
-          ele => ele.created_by.includes(searchValue.value) || ele.name.includes(searchValue.value),
-        ),
-      })),
+    // 计算属性
+    const allFavoriteNumber = computed(
+      () => store.state.favoriteList?.reduce((pre: number, cur: any) => pre + cur.favorites.length, 0) || 0,
     );
 
-    const tabList = computed(() => [
+    const tabList = computed((): ITabItem[] => [
       {
         name: t('原始日志'),
         icon: 'bklog-table-2',
@@ -177,6 +169,10 @@ export default defineComponent({
         count: getTypeCount(chartFavoriteList.value),
       },
     ]);
+
+    const rulesData = computed(() => getGroupNameRules(filterDataList.value));
+
+    // 监听显示状态变化
     watch(
       () => props.isShowCollect,
       value => {
@@ -189,164 +185,6 @@ export default defineComponent({
       },
       { immediate: true },
     );
-    /** 刷新 */
-    const handleRefresh = () => {
-      getFavoriteList();
-    };
-    const renderEmpty = (emptyType: string) => {
-      return (
-        <div class='data-empty-box'>
-          <bk-exception
-            class='exception-wrap-item exception-part'
-            scene='part'
-            type={emptyType}
-          ></bk-exception>
-        </div>
-      );
-    };
-    /** 更新路由配置 */
-    const setRouteParams = (item: IFavoriteItem) => {
-      const getRouteQueryParams = () => {
-        const { ids, isUnionIndex } = store.state.indexItem;
-        const search_mode = SEARCH_MODE_DIC[store.state.storage[BK_LOG_STORAGE.SEARCH_TYPE]] ?? 'ui';
-        const unionList = store.state.unionIndexList;
-        const clusterParams = store.state.clusterParams;
-        const { start_time, end_time, addition, begin, size, ip_chooser, host_scopes, interval, sort_list } =
-          store.getters.retrieveParams;
-        return {
-          addition,
-          start_time,
-          end_time,
-          begin,
-          size,
-          ip_chooser,
-          host_scopes,
-          interval,
-          bk_biz_id: store.state.bkBizId,
-          search_mode,
-          sort_list,
-          ids,
-          isUnionIndex,
-          unionList,
-          clusterParams,
-        };
-      };
-      const routeParams = getRouteQueryParams();
-      const { ids, isUnionIndex } = routeParams;
-      const params = isUnionIndex
-        ? { ...route.params, indexId: undefined }
-        : { ...route.params, indexId: ids?.[0] ? `${ids?.[0]}` : route.params?.indexId };
-      const query = { ...route.query, activeId: String(item?.id) };
-      const resolver = new RetrieveUrlResolver({
-        ...routeParams,
-        datePickerValue: store.state.indexItem.datePickerValue,
-      });
-      Object.assign(query, resolver.resolveParamsToUrl(), {
-        tab: item?.favorite_type === 'chart' ? 'graphAnalysis' : 'origin',
-      });
-      router.replace({
-        params,
-        query,
-      });
-    };
-    /** 选中收藏 */
-    const handleSelectItem = (item: IFavoriteItem) => {
-      if (!item) {
-        activeFavorite.value = null;
-        let clearSearchValueNum = store.state.clearSearchValueNum;
-        // 清空当前检索条件
-        store.commit('updateClearSearchValueNum', (clearSearchValueNum += 1));
-        setRouteParams(item);
-        setTimeout(() => {
-          RetrieveHelper.setFavoriteActive(activeFavorite.value);
-        });
-        return;
-      }
-      const cloneValue = deepClone(item);
-      activeFavorite.value = deepClone(item);
-
-      const isUnionIndex = cloneValue.index_set_ids.length > 0;
-      const keyword = cloneValue.params.keyword;
-      const addition = cloneValue.params.addition ?? [];
-      const getSearchMode = () => {
-        if (addition.length > 0 && keyword.length > 0) {
-          return cloneValue.search_mode;
-        }
-        if (addition.length > 0) {
-          return 'ui';
-        }
-
-        return 'sql';
-      };
-      const search_mode = getSearchMode();
-
-      store.commit('resetIndexsetItemParams');
-      store.commit('updateIndexId', cloneValue.index_set_id);
-      store.commit('updateIsSetDefaultTableColumn', false);
-      store.commit('updateStorage', {
-        [BK_LOG_STORAGE.INDEX_SET_ACTIVE_TAB]: item.index_set_type,
-        [BK_LOG_STORAGE.SEARCH_TYPE]: ['ui', 'sql'].indexOf(search_mode ?? 'ui'),
-      });
-
-      const ip_chooser = Object.assign({}, cloneValue.params.ip_chooser ?? {});
-      if (isUnionIndex) {
-        store.commit(
-          'updateUnionIndexList',
-          cloneValue.index_set_ids.map(item => String(item)),
-        );
-      }
-      if (JSON.stringify(ip_chooser) !== '{}') {
-        addition.push({
-          field: '_ip-select_',
-          operator: '',
-          value: [ip_chooser],
-        });
-      }
-      const ids = isUnionIndex ? cloneValue.index_set_ids : [cloneValue.index_set_id];
-      store.commit('updateIndexItem', {
-        keyword,
-        addition,
-        ip_chooser,
-        index_set_id: cloneValue.index_set_id,
-        ids,
-        items: ids.map(id => indexSetList.value.find(item => item.index_set_id === `${id}`)),
-        isUnionIndex,
-        search_mode: search_mode,
-      });
-
-      setRouteParams(item);
-      store.commit('updateChartParams', {
-        ...cloneValue.params.chart_params,
-        fromCollectionActiveTab: 'unused',
-      });
-
-      store.commit('updateIndexSetQueryResult', {
-        origin_log_list: [],
-        list: [],
-      });
-      store.dispatch('requestIndexSetFieldInfo').then(() => {
-        RetrieveHelper.setFavoriteActive({ ...activeFavorite.value, search_mode });
-        store.dispatch('requestIndexSetQuery');
-      });
-    };
-
-    /** 工具栏相关操作 */
-    const toolHandle = (type: string, data) => {
-      switch (type) {
-        /** 刷新收藏列表 */
-        case 'refresh':
-          handleRefresh();
-          break;
-        /** 是否仅查看当前索引集 */
-        case 'change-index':
-          handleChangeIndex(data);
-          break;
-        /** 全部展开/收起 */
-        case 'collapse':
-          handleCollapseList(data);
-          break;
-      }
-    };
 
     return () => (
       <div class='collect-main-box'>
@@ -361,7 +199,7 @@ export default defineComponent({
             placeholder={t('请输入')}
             right-icon='bk-icon icon-search'
             value={searchValue.value}
-            onInput={v => (searchValue.value = v)}
+            onInput={handleSearchInput}
           />
           <CollectTab
             active={activeTab.value}
@@ -383,7 +221,7 @@ export default defineComponent({
               list={filterDataList.value}
               loading={favoriteLoading.value}
               on-refresh={handleRefresh}
-              on-select-item={handleSelectItem}
+              on-select-item={selectFavoriteItem}
             />
           ) : (
             renderEmpty('empty')

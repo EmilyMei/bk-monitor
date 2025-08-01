@@ -23,7 +23,7 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-import { defineComponent, ref, onMounted, reactive, PropType } from 'vue';
+import { defineComponent, ref, onMounted, PropType } from 'vue';
 
 import BklogPopover from '@/components/bklog-popover';
 import useLocale from '@/hooks/use-locale';
@@ -53,9 +53,9 @@ export default defineComponent({
     const { t } = useLocale();
     const addPopoverRef = ref(null);
     const sortPopoverRef = ref(null);
-    const formRef = ref(null);
-    const formData = reactive({ group_name: '' });
     const active = ref('');
+    const popoverOptions = { placement: 'bottom-end', appendTo: document.body };
+    /** 排序列表 */
     const groupSortList = [
       {
         name: t('按名称 {n} 排序', { n: 'A - Z' }),
@@ -71,8 +71,6 @@ export default defineComponent({
       },
     ];
     onMounted(() => {
-      formRef.value?.clearError();
-      formData.group_name = '';
       active.value = localStorage.getItem('favoriteSortType') || 'NAME_ASC';
     });
     /** 调整排序 */
@@ -101,18 +99,8 @@ export default defineComponent({
     };
     /** 确定按钮 */
     const handleOk = (type: 'add' | 'sort') => {
-      const actions = {
-        add: () => {
-          emit('handle', 'refresh', formData.group_name);
-          handleCancel('add');
-        },
-
-        sort: () => {
-          emit('handle', 'refresh', active.value);
-          handleCancel('sort');
-        },
-      };
-      actions[type]?.();
+      emit('handle', 'refresh');
+      handleCancel(type);
     };
 
     const renderBtnGroup = (type: 'add' | 'sort') => (
@@ -179,7 +167,7 @@ export default defineComponent({
           {/* 新建收藏分组 */}
           <BklogPopover
             ref={addPopoverRef}
-            options={{ placement: 'bottom-end', appendTo: document.body } as any}
+            options={popoverOptions as any}
             trigger='click'
             {...{
               scopedSlots: { content: renderAddGroup },
@@ -200,7 +188,7 @@ export default defineComponent({
           {/* 调整排序 */}
           <BklogPopover
             ref={sortPopoverRef}
-            options={{ placement: 'bottom-end', appendTo: document.body } as any}
+            options={popoverOptions as any}
             trigger='click'
             {...{
               scopedSlots: { content: renderSort },

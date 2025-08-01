@@ -24,15 +24,12 @@
  * IN THE SOFTWARE.
  */
 
-import { defineComponent, onMounted, ref, PropType } from 'vue';
+import { defineComponent, onMounted, ref } from 'vue';
+
+import { ITabItem } from '../../types';
 
 import './collect-tab.scss';
-interface IListItem {
-  name: string;
-  icon: string;
-  key: string;
-  count: number;
-}
+
 export default defineComponent({
   name: 'CollectTab',
   props: {
@@ -41,7 +38,8 @@ export default defineComponent({
       default: 'origin',
     },
     list: {
-      type: Array as PropType<IListItem[]>,
+      type: Array as () => ITabItem[],
+      default: () => [],
     },
   },
   emits: ['tab-change'],
