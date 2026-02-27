@@ -216,11 +216,12 @@ export default defineComponent({
     /**
      * 是否为编辑
      */
-    const isUpdate = computed(
-      () =>
+    const isUpdate = computed(() => {
+      const isEdit =
         (route.name === 'collectEdit' && props.isEdit) ||
-        (route.name === 'collectAdd' && !!formData.value?.collector_config_id),
-    );
+        (route.name === 'collectAdd' && !!formData.value?.collector_config_id);
+      return !props.isClone && isEdit;
+    });
     /**
      * 是否为采集主机日志
      */

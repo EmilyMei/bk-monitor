@@ -43,6 +43,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    configData: {
+      type: Object,
+      default: () => ({}),
+    },
   },
 
   emits: ['next', 'prev', 'cancel'],
@@ -79,6 +83,12 @@ export default defineComponent({
     const isInitializing = ref(false);
 
     onMounted(() => {
+      if (route.name === 'collectAdd') {
+        configData.value = {
+          ...configData.value,
+          ...props.configData,
+        };
+      }
       // this.containerLoading = true;
       initFormData();
     });

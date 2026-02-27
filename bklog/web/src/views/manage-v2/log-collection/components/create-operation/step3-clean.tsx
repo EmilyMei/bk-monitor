@@ -256,6 +256,13 @@ export default defineComponent({
     const isClean = computed(() => cleaningMode.value !== 'bk_log_text');
 
     const isEditCleanItem = computed(() => route.name === 'clean-edit' || route.name === 'v2-clean-edit');
+    const typeDebugStatus = computed(() => {
+      return {
+        bk_log_json: !logOriginal.value,
+        bk_log_delimiter: !logOriginal.value || !delimiter.value,
+        bk_log_regexp: !(logOriginal.value && formData.value.etl_params.separator_regexp),
+      };
+    });
 
     onMounted(() => {
       // 清洗列表进入
@@ -1089,6 +1096,7 @@ export default defineComponent({
                 refresh={isValueRefresh.value}
                 originalTextTokenizeOnChars={defaultParticipleStr.value}
                 selectEtlConfig={cleaningMode.value}
+                isCanRefresh={typeDebugStatus.value[cleaningMode.value]}
                 on-change={data => {
                   formData.value.etl_fields = data;
                 }}

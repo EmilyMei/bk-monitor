@@ -40,6 +40,10 @@
           font-size: 13px;
           margin-right: 5px;
         }
+        &.disabled {
+          cursor: not-allowed;
+          color: #c4c6cc;
+        }
       }
     }
     .overflow-tips-field-name {

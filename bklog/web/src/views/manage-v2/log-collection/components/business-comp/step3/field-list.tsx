@@ -151,6 +151,13 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /**
+     * 值是否可以刷新
+     */
+    isCanRefresh: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['change', 'refresh'],
 
@@ -490,8 +497,9 @@ export default defineComponent({
     );
     /**
      * 刷新值
-     */ const handleFreshValue = () => {
-      emit('refresh');
+     */
+    const handleFreshValue = () => {
+      !props.isCanRefresh && emit('refresh');
     };
 
     /**
@@ -1145,14 +1153,13 @@ export default defineComponent({
         width: 60,
         cell: (h, { row }) => (
           <div class='table-operation'>
-            {isLogDelimiter.value &&
-              !row.is_built_in && (
-                <i
-                  class={`bklog-icon bklog-${row.is_delete ? 'visible' : 'invisible'} icons`}
-                  v-bk-tooltips={row.is_delete ? t('复原') : t('隐藏')}
-                  on-click={() => isDisableOperate(row)}
-                />
-              )}
+            {isLogDelimiter.value && !row.is_built_in && (
+              <i
+                class={`bklog-icon bklog-${row.is_delete ? 'visible' : 'invisible'} icons`}
+                v-bk-tooltips={row.is_delete ? t('复原') : t('隐藏')}
+                on-click={() => isDisableOperate(row)}
+              />
+            )}
             {isLogJson.value && !row.is_built_in && (
               <i
                 class='bklog-icon bklog-log-delete icons del-icon'
@@ -1243,8 +1250,12 @@ export default defineComponent({
               <span class='header-text'>
                 {t('值')}
                 <span
-                  class='header-text-link'
+                  class={{ 'header-text-link': true, disabled: props.isCanRefresh }}
                   on-click={handleFreshValue}
+                  v-bk-tooltips={{
+                    content: t('无可用日志样例，无法刷新'),
+                    disabled: !props.isCanRefresh,
+                  }}
                 >
                   <i class='bklog-icon bklog-refresh2 link-icon' />
                   {t('刷新')}

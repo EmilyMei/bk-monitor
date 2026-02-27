@@ -515,7 +515,7 @@ export default defineComponent({
           <bk-button
             class='mr-8'
             on-click={() => {
-              emit('prev');
+              emit('prev', props.configData);
             }}
           >
             {t('上一步')}

@@ -461,6 +461,7 @@ export default defineComponent({
               pagesize: pageSize,
               keyword: searchKeyword.value,
               conditions: [{ key: 'log_access_type', value: [props.scenarioId] }],
+              exclude_not_completed: true,
             },
           },
           {
