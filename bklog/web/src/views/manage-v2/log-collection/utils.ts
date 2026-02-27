@@ -426,8 +426,8 @@ export const getOperatorCanClick = (row: ICollectListRowData, operateType: Colle
       // 存储设置 - 采集项已完成且采集状态不为"停用"
       return isCompleted && !isTerminated;
     case 'clone':
-      // 克隆 - 无限制条件
-      return true;
+      // 克隆 - 采集项已完成
+      return isCompleted;
     case 'stop':
       // 停用 - 采集状态为"正常"或"异常"
       return isSuccess || isFailed;

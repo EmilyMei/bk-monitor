@@ -317,6 +317,15 @@ export default defineComponent({
                 cur-step={step.value}
                 line-type={'solid'}
                 steps={currentStep.value}
+                controllable={true}
+                on-step-changed={(val: number) => {
+                  /**
+                   * 编辑的时候顶部应该允许自行切换，无需经过前置步骤
+                   */
+                  if (route.name === 'collectEdit') {
+                    step.value = val;
+                  }
+                }}
               />
             </div>
             <span
