@@ -56,6 +56,7 @@ export default defineComponent({
     const dataConfig = ref({});
     const showCollectIssuedSlider = ref(false);
     const currentCollectorId = ref<number | null>(null);
+    const isImport = ref(false);
     const statusMap = {
       success: {
         value: ['SUCCESS'],
@@ -333,6 +334,7 @@ export default defineComponent({
             on-handle={handleFunction}
             isEdit={isEdit.value}
             isClone={isClone.value}
+            isImport={isImport.value}
             on-next={data => {
               dataConfig.value = data;
               if (isNeedIssue.value && ((step.value === 2 && !isEdit.value) || (isEdit.value && step.value === 1))) {
@@ -347,6 +349,9 @@ export default defineComponent({
             on-detail={data => {
               dataConfig.value = data;
               currentCollectorId.value = data.collector_config_id;
+            }}
+            on-import={(val: boolean) => {
+              isImport.value = val;
             }}
           />
         </div>

@@ -267,7 +267,7 @@ export default defineComponent({
         ref={baseInfoRef}
         data={configData.value}
         typeKey='bk-data'
-        on-change={(data) => {
+        on-change={data => {
           configData.value = { ...configData.value, ...data };
         }}
       />
@@ -291,7 +291,7 @@ export default defineComponent({
                 disabled={props.isEdit}
                 loading={clusterLoading.value}
                 value={configData.value.storage_cluster_id}
-                on-selected={(val) => {
+                on-selected={val => {
                   configData.value.storage_cluster_id = val;
                 }}
               >
@@ -398,7 +398,7 @@ export default defineComponent({
               display-tag
               multiple
               searchable
-              on-selected={(value) => {
+              on-selected={value => {
                 configData.value.target_fields = value;
               }}
             >
@@ -424,7 +424,7 @@ export default defineComponent({
               addType='select'
               selectList={targetFieldSelectList.value}
               value={configData.value.sort_fields}
-              on-change={(value) => {
+              on-change={value => {
                 configData.value.sort_fields = value;
               }}
             />
@@ -686,13 +686,14 @@ export default defineComponent({
         }
 
         // 并发请求所有结果表的字段信息
-        const requests = resultTableIds.map(id => $http.request('/resultTables/info', {
-          params: { result_table_id: id },
-          query: {
-            scenario_id: props.scenarioId,
-            bk_biz_id: bkBizId.value,
-          },
-        }),
+        const requests = resultTableIds.map(id =>
+          $http.request('/resultTables/info', {
+            params: { result_table_id: id },
+            query: {
+              scenario_id: props.scenarioId,
+              bk_biz_id: bkBizId.value,
+            },
+          }),
         );
 
         const results = (await Promise.all(requests)) as IFieldQueryResult[];
@@ -710,6 +711,7 @@ export default defineComponent({
 
         collectionTableData.value = Array.from(fieldMap.values());
       } catch (error) {
+        console.log('获取字段列表失败:', error);
         collectionTableData.value = [];
       } finally {
         listLoading.value = false;
@@ -874,6 +876,7 @@ export default defineComponent({
           {!props.isEdit && (
             <bk-button
               class='mr-8'
+              disabled={submitLoading.value}
               on-click={() => {
                 emit('prev');
               }}

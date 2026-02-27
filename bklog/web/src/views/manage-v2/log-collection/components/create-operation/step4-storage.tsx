@@ -59,6 +59,13 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /**
+     * 是否为导入
+     */
+    isImport: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   emits: ['prev', 'cancel'],
@@ -169,13 +176,18 @@ export default defineComponent({
      */
     const handleChooseCluster = row => {
       if (row.storage_cluster_id !== clusterSelect.value) {
-        const { number_of_replicas_max: replicasMax, retention_days_max: daysMax } = row.setup_config;
+        const {
+          number_of_replicas_default: replicasMax,
+          retention_days_default: daysMax,
+          es_shards_default: esShardsDefault,
+        } = row.setup_config;
         formData.value = {
           ...formData.value,
           storage_cluster_id: row.storage_cluster_id,
           storage_replies: replicasMax,
           retention: daysMax,
           allocation_min_days: row.enable_hot_warm ? daysMax : 0,
+          es_shards: esShardsDefault,
         };
       }
       clusterSelect.value = row.storage_cluster_id;
@@ -421,9 +433,11 @@ export default defineComponent({
      */
     const handleNormalSubmit = () => {
       submitLoading.value = true;
+      const defaultTableId = curCollect.value?.collector_config_name_en;
       const { etl_params, etl_fields, clean_type } = cleanStash.value;
       const { collector_config_id, retention, allocation_min_days, storage_replies, es_shards, table_id } =
         formData.value;
+      const tableId = props.isImport ? defaultTableId : table_id || defaultTableId;
       const data = {
         collector_config_id,
         retention,
@@ -433,7 +447,7 @@ export default defineComponent({
         es_shards,
         fields: etl_fields,
         etl_config: clean_type,
-        table_id: table_id || curCollect.value.collector_config_name_en,
+        table_id: tableId,
         storage_cluster_id: clusterSelect.value,
       };
       $http

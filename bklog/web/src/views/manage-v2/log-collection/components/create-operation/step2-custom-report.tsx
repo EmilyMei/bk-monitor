@@ -83,7 +83,6 @@ export default defineComponent({
       initFormData();
     });
     const initFormData = async () => {
-      console.log(' isInitializing.value', isInitializing.value);
       // 防止重复调用：如果正在初始化，直接返回
       if (isInitializing.value) {
         return;
@@ -157,7 +156,6 @@ export default defineComponent({
               baseInfoRef.value
                 .validate()
                 .then(() => {
-                  console.log('configData.value', configData.value);
                   emit('next', configData.value);
                 })
                 .catch(() => {

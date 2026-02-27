@@ -387,7 +387,12 @@ export default defineComponent({
           const configMap = buildConfigMap(processedCollect);
           const mergedConfig = mergeSelectedConfigs(configMap);
 
-          emit('update', mergedConfig);
+          emit('update', {
+            ...mergedConfig,
+            ...{
+              cloneId: currentCheckImportID.value,
+            },
+          });
           handleCancel();
         })
         .catch(err => {
@@ -497,7 +502,7 @@ export default defineComponent({
       (val: boolean) => {
         handleValueChange(val);
         if (val) {
-          getLinkList();
+          changePagination();
         }
       },
     );
@@ -555,7 +560,8 @@ export default defineComponent({
           </div>
           <div class='content-bot'>
             <div class='content-bot-title'>{t('请选择目标索引集')}</div>
-            <TableComponent class='config-import-table'
+            <TableComponent
+              class='config-import-table'
               columns={allColumns.value}
               data={collectList.value}
               loading={isTableLoading.value}

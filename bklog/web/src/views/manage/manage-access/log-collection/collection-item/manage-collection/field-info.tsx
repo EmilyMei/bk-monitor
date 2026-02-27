@@ -358,6 +358,7 @@ export default class FieldInfo extends tsc<IProps> {
         spaceUid: this.$store.state.spaceUid,
         backRoute: 'manage-collection',
         type: 'fieldInfo',
+        typeKey: this.$route.query.typeKey,
       },
     });
   }

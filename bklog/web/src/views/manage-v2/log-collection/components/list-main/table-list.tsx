@@ -365,19 +365,22 @@ export default defineComponent({
       // status 是异步获取的，可能暂时为空，默认按非 terminated 状态处理
       const status = row?.status || '';
 
+      const excludedKey = status !== 'terminated' ? 'start' : 'stop';
+
       if (!type) {
-        return MENU_LIST.filter(item => item.key !== (status !== 'terminated' ? 'start' : 'stop'));
+        return MENU_LIST.filter(item => item.key !== excludedKey);
       }
 
       if (type === 'custom_report') {
-        return MENU_LIST.filter(item => ['desensitization', 'disable', 'delete'].includes(item.key));
+        const CUSTOM_REPORT_ALLOWED_KEYS = ['desensitization', 'disable', 'delete', 'start', 'stop'];
+        return MENU_LIST.filter(item => CUSTOM_REPORT_ALLOWED_KEYS.includes(item.key) && item.key !== excludedKey);
       }
 
       if (['bkdata', 'es'].includes(type)) {
         return MENU_LIST.filter(item => ['desensitization', 'delete'].includes(item.key));
       }
 
-      return MENU_LIST.filter(item => item.key !== (status !== 'terminated' ? 'start' : 'stop'));
+      return MENU_LIST.filter(item => item.key !== excludedKey);
     };
 
     /**
@@ -1088,7 +1091,7 @@ export default defineComponent({
 
       // 删除操作
       if (key === 'delete') {
-        if (row.status !== 'running') {
+        if (getOperatorCanClick(row, 'delete')) {
           window.mainComponent?.$bkInfo({
             type: 'warning',
             subTitle: t('当前采集项名称为{n}，确认要删除？', { n: row.collector_config_name || row.name }),

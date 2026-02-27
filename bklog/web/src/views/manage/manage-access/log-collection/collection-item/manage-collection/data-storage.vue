@@ -197,6 +197,7 @@
             spaceUid: this.$store.state.spaceUid,
             backRoute: 'manage-collection',
             type: 'dataStorage',
+            typeKey: this.$route.query.typeKey,
           },
         });
       },

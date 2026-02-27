@@ -79,6 +79,13 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /**
+     * 是否为导入
+     */
+    isImport: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   emits: ['next', 'prev', 'cancel', 'change-submit'],
@@ -114,6 +121,7 @@ export default defineComponent({
      */
     const pathExample = ref();
     const isDebugLoading = ref(false);
+    const isMetadataDebug = ref(false);
     /**
      * 日志样例
      */
@@ -264,7 +272,14 @@ export default defineComponent({
         isEditTemp.value && initCleanTemp();
         return;
       }
-      const id = isUpdate.value ? route.params.collectorId : route.query.collectorId;
+      let id =
+        (isUpdate.value ? route.params.collectorId : route.query.collectorId) || props.configData.collector_config_id;
+      /**
+       * 导入的时候去拉取导入的采集项的清洗配置
+       */
+      if (props.isImport) {
+        id = props.configData.cloneId;
+      }
       setDetail(id);
       getTemplate();
     });
@@ -296,6 +311,10 @@ export default defineComponent({
       formData.value = {
         ...formData.value,
         ...data,
+        etl_params: {
+          ...formData.value.etl_params,
+          ...(data.etl_params || {}),
+        },
       };
       delimiter.value = data.etl_params.separator;
       templateName.value = data.name;
@@ -343,6 +362,11 @@ export default defineComponent({
           }
         });
     };
+    /**
+     * 获取清洗缓存
+     * @param id
+     * @returns
+     */
     const getCleanStash = async (id: number) => {
       try {
         const res = await $http.request('clean/getCleanStash', {
@@ -356,11 +380,15 @@ export default defineComponent({
           const logReportingTime = !timeField; // 如果存在is_time为true的字段，则log_reporting_time为false
           const fieldName = timeField?.field_name || '';
           cleaningMode.value = clean_type;
-          enableMetaData.value = etl_params.path_regexp;
+          enableMetaData.value = etl_params.path_regexp ? true : false;
           visibleBkBiz.value = visible_bk_biz_id;
           formData.value = {
             ...formData.value,
             ...res.data,
+            etl_params: {
+              ...formData.value.etl_params,
+              ...(res.data.etl_params || {}),
+            },
             log_reporting_time: logReportingTime,
             field_name: fieldName,
           };
@@ -373,6 +401,7 @@ export default defineComponent({
         formData.value.etl_params.retain_original_text = true;
         formData.value.etl_params.enable_retain_content = true;
         cacheTemplateData.value = deepClone(formData.value);
+        cleaningMode.value = props.configData.clean_type || 'bk_log_text';
       } catch (error) {
         console.log(error);
       }
@@ -388,6 +417,10 @@ export default defineComponent({
       formData.value = {
         ...formData.value,
         ...props.configData,
+        etl_params: {
+          ...formData.value.etl_params,
+          ...(props.configData.etl_params || {}),
+        },
         etl_fields: eltField,
       };
 
@@ -403,7 +436,7 @@ export default defineComponent({
           if (res.data) {
             store.commit('collect/setCurCollect', res.data);
             builtInFieldsList.value = curCollect.value.fields.filter(item => item.is_built_in);
-            if (props.isEdit || props.isClone || props.isCleanField) {
+            if (props.isImport || props.isEdit || props.isClone || props.isCleanField) {
               getDataLog('init');
               await getCleanStash(id);
             }
@@ -425,7 +458,7 @@ export default defineComponent({
         data: pathExample.value,
       };
       const urlParams = {};
-      isDebugLoading.value = true;
+      isMetadataDebug.value = true;
       urlParams.collector_config_id = curCollect.value.collector_config_id;
       const updateData = { params: urlParams, data };
       // 先置空防止接口失败显示旧数据
@@ -433,14 +466,17 @@ export default defineComponent({
       $http
         .request('collect/getEtlPreview', updateData)
         .then(res => {
-          const fields = res.data?.fields || [];
+          const fields = (res.data?.fields || []).map(item => {
+            item.metadata_type = 'path';
+            return item;
+          });
           formData.value.etl_params?.metadata_fields.push(...fields);
         })
         .catch(err => {
           console.log(err);
         })
         .finally(() => {
-          isDebugLoading.value = false;
+          isMetadataDebug.value = false;
         });
     };
 
@@ -671,7 +707,10 @@ export default defineComponent({
       cacheTemplateData.value = { ...formData.value };
       formData.value = {
         ...formData.value,
-        etl_params,
+        etl_params: {
+          ...formData.value.etl_params,
+          ...(etl_params || {}),
+        },
         etl_fields,
         clean_type,
       };
@@ -780,7 +819,7 @@ export default defineComponent({
             data: timeValueItem?.value || '',
           },
         })
-        .then(res => {
+        .then(() => {
           timeCheckErrContent.value = '';
           result = true;
         })
@@ -1208,7 +1247,7 @@ export default defineComponent({
                 />
                 <bk-button
                   class='debug-btn'
-                  disabled={!showDebugPathRegexBtn.value || isDebugLoading.value}
+                  disabled={!showDebugPathRegexBtn.value || isMetadataDebug.value}
                   on-click={debuggerPathRegex}
                 >
                   {t('调试')}
@@ -1287,7 +1326,6 @@ export default defineComponent({
                   multiple
                   searchable
                   on-change={val => {
-                    console.log(val, 'val');
                     visibleBkBiz.value = val;
                     formData.value.visible_bk_biz_id = val;
                   }}
@@ -1328,6 +1366,7 @@ export default defineComponent({
         try {
           await Promise.all(validatePromises);
         } catch (error) {
+          console.log('字段表格校验未通过', error);
           loading.value = false;
           return;
         }
@@ -1372,7 +1411,11 @@ export default defineComponent({
         const url = isNeedCreate ? 'collect/fieldCollection' : 'clean/updateCleanStash';
         const data = {
           bk_biz_id: bkBizId.value,
-          etl_params,
+          etl_params: {
+            ...etl_params,
+            path_regexp: enableMetaData.value ? etl_params.path_regexp : '',
+            metadata_fields: enableMetaData.value ? etl_params.metadata_fields : [],
+          },
         };
         const fieldsList = cleaningMode.value === 'bk_log_text' ? [] : etl_fields;
         const requestData = isNeedCreate

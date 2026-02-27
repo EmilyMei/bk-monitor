@@ -111,7 +111,7 @@ export default defineComponent({
     },
   },
 
-  emits: ['next', 'prev', 'cancel', 'detail'],
+  emits: ['next', 'prev', 'cancel', 'detail', 'import'],
 
   setup(props, { emit }) {
     const { t } = useLocale();
@@ -1482,6 +1482,7 @@ export default defineComponent({
           {!isCloneOrUpdate.value && (
             <bk-button
               class='mr-8'
+              disabled={loadingSave.value}
               on-click={() => {
                 emit('prev');
               }}
@@ -1517,6 +1518,7 @@ export default defineComponent({
               ...formData.value,
               ...data,
             };
+            emit('import', true, data);
             initConfig(formData.value);
           }}
         />
